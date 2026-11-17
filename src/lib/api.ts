@@ -19,7 +19,7 @@ export type TrashItem = {
   id: string; title: string; detail: string; deletedAt: string; reason: string | null; daysLeft: number;
 };
 
-export type Clinic = { id: string; name: string; doctorName: string; qualification: string | null; phone: string | null; address: string | null; hoursJson: string };
+export type Clinic = { id: string; name: string; doctorName: string; qualification: string | null; phone: string | null; address: string | null; hoursJson: string; upiId: string | null };
 
 export type ApptStatus = "booked" | "arrived" | "in_chair" | "done" | "no_show" | "cancelled";
 export type Appointment = {
@@ -47,3 +47,11 @@ export async function startVisit(patientId: string, appointmentId?: string) {
   const r = await api<{ id: string }>("/visits", { method: "POST", body: JSON.stringify({ patientId, appointmentId }) });
   return r.id;
 }
+
+export type PayMode = "cash" | "upi" | "card" | "insurance" | "emi";
+export type InvoiceSummary = {
+  id: string; number: string; issuedAt: string; totalPaise: number; discountPaise: number; paidPaise: number; balancePaise: number;
+  patient: { id: string; name: string; code: string; phone: string };
+};
+export type Receipt = { id: string; number: string; amountPaise: number; mode: PayMode; reference: string | null; receivedAt: string; invoiceId: string | null };
+export type Invoice = InvoiceSummary & { lines: { id: string; service: string; tooth: string | null; amountPaise: number }[]; receipts: Receipt[] };

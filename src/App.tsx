@@ -8,6 +8,8 @@ import { Patients } from "./pages/Patients";
 import { PatientRecord } from "./pages/PatientRecord";
 import { Visit } from "./pages/Visit";
 import { PrintRx } from "./pages/PrintRx";
+import { PrintReceipt } from "./pages/PrintReceipt";
+import { Billing } from "./pages/Billing";
 import { Trash } from "./pages/Trash";
 import { ComingNext } from "./pages/ComingNext";
 
@@ -18,6 +20,7 @@ export function App() {
         <Routes>
           {/* Printouts have no menu, so the page is just the A4 sheet. */}
           <Route path="/print/rx/:id" element={<PrintRx />} />
+          <Route path="/print/receipt/:id" element={<PrintReceipt />} />
           <Route path="*" element={
             <Shell>
               <Routes>
@@ -27,7 +30,7 @@ export function App() {
                 <Route path="/patients/:id" element={<PatientRecord />} />
                 <Route path="/visits/:id" element={<Visit />} />
                 <Route path="/recently-deleted" element={<Trash />} />
-                <Route path="/billing" element={<ComingNext title="Billing" />} />
+                <Route path="/billing" element={<Billing />} />
                 <Route path="/lab-orders" element={<ComingNext title="Lab orders" />} />
                 <Route path="/reports" element={<ComingNext title="Reports" />} />
                 <Route path="/messages" element={<ComingNext title="Messages" />} />

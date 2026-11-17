@@ -1,5 +1,6 @@
 import { Hono } from "hono";
-import { and, asc, desc, eq, gte, isNotNull, isNull, like, lt, or } from "drizzle-orm";
+import { and, asc, desc, eq, gte, isNotNull, isNull, like, lt, or, sql, type SQL } from "drizzle-orm";
+import type { BatchItem } from "drizzle-orm/batch";
 import { drizzle } from "drizzle-orm/d1";
 import * as s from "./db/schema";
 import { CLINIC_ID, type Env } from "./env";
@@ -9,6 +10,8 @@ import { formatNumber, type Series } from "../shared/numbering";
 import { istToUtc, label12, overlaps, utcToIst } from "../shared/time";
 import { directions, quantity, type Food } from "../shared/rx";
 import { findDrug, penicillinAllergy } from "../shared/drugs";
+import { billTotal, PAY_MODES, type PayMode } from "../shared/services";
+import { amountInWords, rupees } from "../shared/money";
 
 const app = new Hono<{ Bindings: Env }>().basePath("/api");
 const db = (env: Env) => drizzle(env.DB, { schema: s });
@@ -188,6 +191,121 @@ app.post("/visits/:id/sign", async (c) => {
   return c.json({ signedAt });
 });
 
+// ---------- Billing ----------
+type LineIn = { service: string; tooth?: string | null; amountPaise: number };
+type PayIn = { amountPaise: number; mode: PayMode; reference?: string | null };
+const MODES = PAY_MODES.map((m) => m[0]) as string[];
+
+function checkPay(p: PayIn, balance: number): string | null {
+  if (!Number.isInteger(p.amountPaise) || p.amountPaise <= 0) return "Enter the amount received.";
+  if (!MODES.includes(p.mode)) return "Choose how they paid.";
+  if (p.amountPaise > balance) return `That is more than the balance of ${rupees(balance)}.`;
+  return null;
+}
+
+async function invoiceSummaries(env: Env, where?: SQL) {
+  const d = db(env);
+  const rows = await d.select({ i: s.invoices, p: { id: s.patients.id, name: s.patients.name, code: s.patients.code, phone: s.patients.phone } })
+    .from(s.invoices).innerJoin(s.patients, eq(s.patients.id, s.invoices.patientId))
+    .where(and(eq(s.invoices.clinicId, CLINIC_ID), isNull(s.invoices.deletedAt), isNull(s.patients.deletedAt), where))
+    .orderBy(desc(s.invoices.issuedAt)).limit(300);
+  const paid = await d.select({ invoiceId: s.receipts.invoiceId, sum: sql<number>`sum(${s.receipts.amountPaise})` })
+    .from(s.receipts).where(and(eq(s.receipts.clinicId, CLINIC_ID), isNull(s.receipts.deletedAt))).groupBy(s.receipts.invoiceId);
+  const paidBy = new Map(paid.map((r) => [r.invoiceId, Number(r.sum)]));
+  return rows.map(({ i, p }) => {
+    const paidPaise = paidBy.get(i.id) ?? 0;
+    return { id: i.id, number: i.number, issuedAt: i.issuedAt, totalPaise: i.totalPaise, discountPaise: i.discountPaise, paidPaise, balancePaise: i.totalPaise - paidPaise, patient: p };
+  });
+}
+
+app.get("/invoices", async (c) => {
+  const patientId = c.req.query("patientId");
+  return c.json(await invoiceSummaries(c.env, patientId ? eq(s.invoices.patientId, patientId) : undefined));
+});
+
+app.get("/invoices/:id", async (c) => {
+  const d = db(c.env);
+  const id = c.req.param("id");
+  const [sum] = await invoiceSummaries(c.env, eq(s.invoices.id, id));
+  if (!sum) return c.json({ error: "That bill was not found." }, 404);
+  const lines = await d.select().from(s.invoiceLines).where(eq(s.invoiceLines.invoiceId, id));
+  const receipts = await d.select().from(s.receipts)
+    .where(and(eq(s.receipts.invoiceId, id), isNull(s.receipts.deletedAt))).orderBy(asc(s.receipts.receivedAt));
+  return c.json({ ...sum, lines, receipts });
+});
+
+/** New bill, optionally with the payment taken at the counter. */
+app.post("/invoices", async (c) => {
+  const b = await c.req.json<{ patientId?: string; lines?: LineIn[]; discountPaise?: number; payment?: PayIn | null }>();
+  const d = db(c.env);
+  const [p] = await d.select().from(s.patients)
+    .where(and(eq(s.patients.id, b.patientId ?? ""), eq(s.patients.clinicId, CLINIC_ID), isNull(s.patients.deletedAt)));
+  if (!p) return c.json({ error: "Choose a patient." }, 400);
+  const lines = (b.lines ?? []).filter((l) => l.service?.trim());
+  if (!lines.length) return c.json({ error: "Add at least one service." }, 400);
+  if (lines.some((l) => !Number.isInteger(l.amountPaise) || l.amountPaise < 0)) return c.json({ error: "Check the amounts." }, 400);
+  const discountPaise = Math.max(0, Math.round(b.discountPaise ?? 0));
+  const totalPaise = billTotal(lines, discountPaise);
+  if (b.payment) {
+    const bad = checkPay(b.payment, totalPaise);
+    if (bad) return c.json({ error: bad }, 400);
+  }
+  const id = crypto.randomUUID();
+  const number = await nextNumber(c.env, "invoice");
+  const now = new Date().toISOString();
+  const ops: BatchItem<"sqlite">[] = [
+    d.insert(s.invoices).values({ id, clinicId: CLINIC_ID, patientId: p.id, number, issuedAt: now, discountPaise, totalPaise }),
+    d.insert(s.invoiceLines).values(lines.map((l) => ({ id: crypto.randomUUID(), invoiceId: id, service: l.service.trim(), tooth: l.tooth?.trim() || null, amountPaise: l.amountPaise }))),
+  ];
+  let receipt: { id: string; number: string } | null = null;
+  if (b.payment) {
+    receipt = { id: crypto.randomUUID(), number: await nextNumber(c.env, "receipt") };
+    ops.push(d.insert(s.receipts).values({
+      id: receipt.id, clinicId: CLINIC_ID, patientId: p.id, invoiceId: id, number: receipt.number,
+      amountPaise: b.payment.amountPaise, mode: b.payment.mode, reference: b.payment.reference?.trim() || null, receivedAt: now,
+    }));
+  }
+  await d.batch(ops as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]]);
+  await audit(d, CLINIC_ID, "create", "invoice", id, { number, totalPaise, receipt: receipt?.number });
+  return c.json({ id, number, receipt }, 201);
+});
+
+/** A later payment against a bill (balance, EMI instalment, insurance settlement). */
+app.post("/invoices/:id/receipts", async (c) => {
+  const id = c.req.param("id");
+  const [sum] = await invoiceSummaries(c.env, eq(s.invoices.id, id));
+  if (!sum) return c.json({ error: "That bill was not found." }, 404);
+  const b = await c.req.json<PayIn>();
+  const bad = checkPay(b, sum.balancePaise);
+  if (bad) return c.json({ error: bad }, 400);
+  const rid = crypto.randomUUID();
+  const number = await nextNumber(c.env, "receipt");
+  await db(c.env).insert(s.receipts).values({
+    id: rid, clinicId: CLINIC_ID, patientId: sum.patient.id, invoiceId: id, number,
+    amountPaise: b.amountPaise, mode: b.mode, reference: b.reference?.trim() || null, receivedAt: new Date().toISOString(),
+  });
+  await audit(db(c.env), CLINIC_ID, "create", "receipt", rid, { number, amountPaise: b.amountPaise });
+  return c.json({ id: rid, number }, 201);
+});
+
+/** Everything the A4 receipt needs. */
+app.get("/receipts/:id", async (c) => {
+  const d = db(c.env);
+  const [r] = await d.select().from(s.receipts)
+    .where(and(eq(s.receipts.id, c.req.param("id")), eq(s.receipts.clinicId, CLINIC_ID), isNull(s.receipts.deletedAt)));
+  if (!r) return c.json({ error: "That receipt was not found." }, 404);
+  const [p] = await d.select().from(s.patients).where(eq(s.patients.id, r.patientId));
+  let invoice = null;
+  if (r.invoiceId) {
+    const [sum] = await invoiceSummaries(c.env, eq(s.invoices.id, r.invoiceId));
+    const lines = await d.select().from(s.invoiceLines).where(eq(s.invoiceLines.invoiceId, r.invoiceId));
+    const receipts = await d.select().from(s.receipts)
+      .where(and(eq(s.receipts.invoiceId, r.invoiceId), isNull(s.receipts.deletedAt))).orderBy(asc(s.receipts.receivedAt));
+    invoice = sum ? { ...sum, lines, receipts } : null;
+  }
+  return c.json({ receipt: r, patient: parsePatient(p!), invoice, inWords: amountInWords(r.amountPaise) });
+});
+
 // ---------- Appointments ----------
 const STATUSES = ["booked", "arrived", "in_chair", "done", "no_show", "cancelled"] as const;
 type Status = (typeof STATUSES)[number];
@@ -300,9 +418,9 @@ app.get("/trash", async (c) => {
   for (const p of await d.select().from(s.patients).where(and(eq(s.patients.clinicId, CLINIC_ID), isNotNull(s.patients.deletedAt))))
     push("patient", p.id, p.name, `${p.code}${p.fileNo ? " · " + p.fileNo : ""}`, p.deletedAt, p.deletedReason);
   for (const r of await d.select().from(s.receipts).where(and(eq(s.receipts.clinicId, CLINIC_ID), isNotNull(s.receipts.deletedAt))))
-    push("receipt", r.id, `Receipt ${r.number}`, `${r.mode.toUpperCase()} · ${r.amountPaise / 100}`, r.deletedAt, r.deletedReason);
+    push("receipt", r.id, `Receipt ${r.number}`, `${r.mode.toUpperCase()} · ${rupees(r.amountPaise)}`, r.deletedAt, r.deletedReason);
   for (const r of await d.select().from(s.invoices).where(and(eq(s.invoices.clinicId, CLINIC_ID), isNotNull(s.invoices.deletedAt))))
-    push("invoice", r.id, `Invoice ${r.number}`, `${r.totalPaise / 100}`, r.deletedAt, r.deletedReason);
+    push("invoice", r.id, `Invoice ${r.number}`, rupees(r.totalPaise), r.deletedAt, r.deletedReason);
   for (const r of await d.select().from(s.labOrders).where(and(eq(s.labOrders.clinicId, CLINIC_ID), isNotNull(s.labOrders.deletedAt))))
     push("lab", r.id, `Lab order ${r.number} · ${r.work}`, r.lab, r.deletedAt, r.deletedReason);
   for (const { a, name } of await d.select({ a: s.appointments, name: s.patients.name }).from(s.appointments)

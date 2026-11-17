@@ -6,6 +6,7 @@ import { DRUG_SETS, DRUGS, findDrug, penicillinAllergy } from "../../shared/drug
 import { directions } from "../../shared/rx";
 import { label12, utcToIst } from "../../shared/time";
 import { dayLabel } from "../components/Appointments";
+import { NewBill, printReceipt } from "../components/Billing";
 
 const FINDINGS = ["Deep caries", "Tender on percussion", "Periapical widening on IOPA", "Mobility grade I", "Swelling", "Fractured cusp", "Calculus", "Bleeding gums"];
 const DIAGNOSES = ["Irreversible pulpitis", "Reversible pulpitis", "Dental caries", "Periapical abscess", "Gingivitis", "Chronic periodontitis", "Cracked tooth", "Impacted tooth"];
@@ -28,6 +29,7 @@ export function Visit() {
   const [error, setError] = useState("");
   const [drugQ, setDrugQ] = useState("");
   const dirty = useRef(false);
+  const [billing, setBilling] = useState(false);
 
   useEffect(() => {
     api<VisitBundle>(`/visits/${id}`).then((r) => {
@@ -196,9 +198,15 @@ export function Visit() {
           {!locked && (sugarMissing || clashes.length > 0) && (
             <p className="warn">{sugarMissing ? "Add today’s blood sugar before signing (diabetic patient)." : "Resolve the allergy warning before signing."}</p>
           )}
-          {locked && <button type="button" className="btn" onClick={() => nav(`/patients/${patient.id}`)}>Back to {patient.name}</button>}
+          {locked && (
+            <div className="chips">
+              <button type="button" className="btn primary" onClick={() => setBilling(true)}>Make the bill</button>
+              <button type="button" className="btn" onClick={() => nav(`/patients/${patient.id}`)}>Back to {patient.name}</button>
+            </div>
+          )}
         </section>
       </div>
+      {billing && <NewBill patient={patient} onClose={() => setBilling(false)} onSaved={(msg, receiptId) => { setBilling(false); toast({ title: msg }); if (receiptId) printReceipt(receiptId); }} />}
     </>
   );
 }

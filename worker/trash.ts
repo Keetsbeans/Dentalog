@@ -30,9 +30,15 @@ export async function audit(db: Db, clinicId: string, action: string, entity: st
 
 export async function softDelete(db: Db, clinicId: string, kind: TrashKind, id: string, reason: string | null) {
   const t = TRASHABLE[kind];
+  const deletedAt = new Date().toISOString();
+  // A bill takes its payments with it, stamped with the same time so Undo brings them back together.
+  if (kind === "invoice") {
+    await db.update(s.receipts).set({ deletedAt, deletedReason: "Deleted with its invoice" })
+      .where(and(eq(s.receipts.invoiceId, id), eq(s.receipts.clinicId, clinicId), isNull(s.receipts.deletedAt)));
+  }
   const res = await db
     .update(t)
-    .set({ deletedAt: new Date().toISOString(), deletedReason: reason })
+    .set({ deletedAt, deletedReason: reason })
     .where(and(eq(t.id, id), eq(t.clinicId, clinicId), isNull(t.deletedAt)))
     .returning({ id: t.id });
   if (res.length) await audit(db, clinicId, "delete", kind, id, { reason });
@@ -41,6 +47,21 @@ export async function softDelete(db: Db, clinicId: string, kind: TrashKind, id: 
 
 export async function restore(db: Db, clinicId: string, kind: TrashKind, id: string) {
   const t = TRASHABLE[kind];
+  if (kind === "invoice") {
+    const [inv] = await db.select().from(s.invoices).where(and(eq(s.invoices.id, id), eq(s.invoices.clinicId, clinicId)));
+    if (inv?.deletedAt) {
+      await db.update(s.receipts).set({ deletedAt: null, deletedReason: null })
+        .where(and(eq(s.receipts.invoiceId, id), eq(s.receipts.deletedAt, inv.deletedAt)));
+    }
+  }
+  if (kind === "receipt") {
+    // A payment can't come back on its own while its bill is still deleted.
+    const [r] = await db.select().from(s.receipts).where(and(eq(s.receipts.id, id), eq(s.receipts.clinicId, clinicId)));
+    if (r?.invoiceId) {
+      const [inv] = await db.select({ deletedAt: s.invoices.deletedAt }).from(s.invoices).where(eq(s.invoices.id, r.invoiceId));
+      if (inv?.deletedAt) return false;
+    }
+  }
   const res = await db
     .update(t)
     .set({ deletedAt: null, deletedReason: null })
@@ -75,7 +96,13 @@ export async function purgeOne(db: Db, env: { FILES: R2Bucket }, clinicId: strin
     await db.delete(s.appointments).where(eq(s.appointments.patientId, id));
   }
   if (kind === "visit") await db.delete(s.prescriptionItems).where(eq(s.prescriptionItems.visitId, id));
-  if (kind === "invoice") await db.delete(s.invoiceLines).where(eq(s.invoiceLines.invoiceId, id));
+  if (kind === "invoice") {
+    for (const r of await db.select().from(s.receipts).where(eq(s.receipts.invoiceId, id))) {
+      await db.delete(s.receipts).where(eq(s.receipts.id, r.id));
+      await audit(db, clinicId, "purge", "receipt", r.id, r);
+    }
+    await db.delete(s.invoiceLines).where(eq(s.invoiceLines.invoiceId, id));
+  }
   if (kind === "file") await env.FILES.delete((row as typeof s.files.$inferSelect).r2Key);
 
   await db.delete(t).where(eq(t.id, id));
