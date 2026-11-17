@@ -5,16 +5,19 @@ import { Today } from "./pages/Today";
 import { Patients } from "./pages/Patients";
 import { Trash } from "./pages/Trash";
 import { ComingNext } from "./pages/ComingNext";
+import { Calendar } from "./pages/Calendar";
+import { ClinicProvider } from "./lib/clinic";
 
 export function App() {
   return (
+    <ClinicProvider>
     <ToastProvider>
       <Shell>
         <Routes>
           <Route path="/" element={<Today />} />
           <Route path="/patients" element={<Patients />} />
           <Route path="/recently-deleted" element={<Trash />} />
-          <Route path="/calendar" element={<ComingNext title="Calendar" />} />
+          <Route path="/calendar" element={<Calendar />} />
           <Route path="/billing" element={<ComingNext title="Billing" />} />
           <Route path="/lab-orders" element={<ComingNext title="Lab orders" />} />
           <Route path="/reports" element={<ComingNext title="Reports" />} />
@@ -24,5 +27,6 @@ export function App() {
         </Routes>
       </Shell>
     </ToastProvider>
+    </ClinicProvider>
   );
 }

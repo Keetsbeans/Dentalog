@@ -1,6 +1,6 @@
-import { useEffect, useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { NavLink } from "react-router";
-import { api, type Clinic } from "../lib/api";
+import { useClinic } from "../lib/clinic";
 
 const NAV: [string, string][] = [
   ["Today", "/"], ["Calendar", "/calendar"], ["Patients", "/patients"], ["Billing", "/billing"],
@@ -9,8 +9,7 @@ const NAV: [string, string][] = [
 ];
 
 export function Shell({ children }: { children: ReactNode }) {
-  const [clinic, setClinic] = useState<Clinic | null>(null);
-  useEffect(() => { api<Clinic>("/clinic").then(setClinic).catch(() => setClinic(null)); }, []);
+  const { clinic } = useClinic();
   return (
     <div className="app">
       <nav className="side" aria-label="Main">

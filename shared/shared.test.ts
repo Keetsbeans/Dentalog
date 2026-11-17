@@ -56,3 +56,28 @@ describe("numbering", () => {
     expect(formatNumber.receipt(27)).toBe("RCPT27");
   });
 });
+
+import { addDays, istToUtc, label12, overlaps, slots, utcToIst, weekStart } from "./time";
+
+describe("India time", () => {
+  it("converts clinic time to UTC and back", () => {
+    expect(istToUtc("2026-11-17", "15:30")).toBe("2026-11-17T10:00:00.000Z");
+    expect(istToUtc("2026-11-17", "03:00")).toBe("2026-11-16T21:30:00.000Z");
+    expect(utcToIst("2026-11-16T21:30:00.000Z")).toEqual({ day: "2026-11-17", time: "03:00" });
+  });
+  it("finds the week and the slots", () => {
+    expect(weekStart("2026-11-17")).toBe("2026-11-16");
+    expect(weekStart("2026-11-22")).toBe("2026-11-16");
+    expect(addDays("2026-12-31", 1)).toBe("2027-01-01");
+    const hours = { tue: ["15:30", "20:30"] as [string, string], sun: null };
+    expect(slots(hours, "2026-11-17")).toHaveLength(10);
+    expect(slots(hours, "2026-11-17")[0]).toBe("15:30");
+    expect(slots(hours, "2026-11-22")).toEqual([]);
+    expect(label12("15:30")).toBe("3:30 PM");
+    expect(label12("12:00")).toBe("12:00 PM");
+  });
+  it("spots double bookings", () => {
+    expect(overlaps("2026-11-17T10:00:00Z", 30, "2026-11-17T10:15:00Z", 30)).toBe(true);
+    expect(overlaps("2026-11-17T10:00:00Z", 30, "2026-11-17T10:30:00Z", 30)).toBe(false);
+  });
+});
