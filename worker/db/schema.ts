@@ -88,6 +88,8 @@ export const visits = sqliteTable(
     patientId: text("patient_id").notNull().references(() => patients.id),
     appointmentId: text("appointment_id").references(() => appointments.id),
     vitalsJson: text("vitals_json").notNull().default("{}"),
+    /** FDI tooth numbers the visit is about, e.g. "16" or "36, 37". */
+    tooth: text("tooth"),
     complaint: text("complaint"),
     findingsJson: text("findings_json").notNull().default("[]"),
     diagnosisJson: text("diagnosis_json").notNull().default("[]"),
@@ -108,6 +110,8 @@ export const prescriptionItems = sqliteTable("prescription_items", {
   id: id(),
   visitId: text("visit_id").notNull().references(() => visits.id),
   drug: text("drug").notNull(),
+  /** What is in it, printed under the brand name, e.g. "Azithromycin 500 mg · tablet". */
+  generic: text("generic"),
   /** Morning-afternoon-night, e.g. "1-0-1", or "SOS". */
   dose: text("dose").notNull(),
   days: integer("days"),

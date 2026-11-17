@@ -1,32 +1,43 @@
 import { Route, Routes } from "react-router";
 import { Shell } from "./components/Shell";
 import { ToastProvider } from "./components/Toast";
+import { ClinicProvider } from "./lib/clinic";
 import { Today } from "./pages/Today";
+import { Calendar } from "./pages/Calendar";
 import { Patients } from "./pages/Patients";
+import { PatientRecord } from "./pages/PatientRecord";
+import { Visit } from "./pages/Visit";
+import { PrintRx } from "./pages/PrintRx";
 import { Trash } from "./pages/Trash";
 import { ComingNext } from "./pages/ComingNext";
-import { Calendar } from "./pages/Calendar";
-import { ClinicProvider } from "./lib/clinic";
 
 export function App() {
   return (
     <ClinicProvider>
-    <ToastProvider>
-      <Shell>
+      <ToastProvider>
         <Routes>
-          <Route path="/" element={<Today />} />
-          <Route path="/patients" element={<Patients />} />
-          <Route path="/recently-deleted" element={<Trash />} />
-          <Route path="/calendar" element={<Calendar />} />
-          <Route path="/billing" element={<ComingNext title="Billing" />} />
-          <Route path="/lab-orders" element={<ComingNext title="Lab orders" />} />
-          <Route path="/reports" element={<ComingNext title="Reports" />} />
-          <Route path="/messages" element={<ComingNext title="Messages" />} />
-          <Route path="/settings" element={<ComingNext title="Settings" />} />
-          <Route path="*" element={<ComingNext title="Page not found" />} />
+          {/* Printouts have no menu, so the page is just the A4 sheet. */}
+          <Route path="/print/rx/:id" element={<PrintRx />} />
+          <Route path="*" element={
+            <Shell>
+              <Routes>
+                <Route path="/" element={<Today />} />
+                <Route path="/calendar" element={<Calendar />} />
+                <Route path="/patients" element={<Patients />} />
+                <Route path="/patients/:id" element={<PatientRecord />} />
+                <Route path="/visits/:id" element={<Visit />} />
+                <Route path="/recently-deleted" element={<Trash />} />
+                <Route path="/billing" element={<ComingNext title="Billing" />} />
+                <Route path="/lab-orders" element={<ComingNext title="Lab orders" />} />
+                <Route path="/reports" element={<ComingNext title="Reports" />} />
+                <Route path="/messages" element={<ComingNext title="Messages" />} />
+                <Route path="/settings" element={<ComingNext title="Settings" />} />
+                <Route path="*" element={<ComingNext title="Page not found" />} />
+              </Routes>
+            </Shell>
+          } />
         </Routes>
-      </Shell>
-    </ToastProvider>
+      </ToastProvider>
     </ClinicProvider>
   );
 }

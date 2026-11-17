@@ -32,3 +32,18 @@ export type Appointment = {
 export class ApiError extends Error {
   constructor(message: string, public status: number, public clash = false) { super(message); }
 }
+
+export type Food = "after" | "before" | "any";
+export type RxItem = { id?: string; drug: string; generic: string | null; dose: string; days: number | null; food: Food; instruction?: string; quantity?: number | null };
+export type Visit = {
+  id: string; patientId: string; appointmentId: string | null; createdAt: string; signedAt: string | null;
+  vitals: Record<string, string>; tooth: string | null; complaint: string | null; findings: string[]; diagnosis: string[];
+  notes: string | null; advice: string[]; adviceNote: string | null; nextVisit: string | null;
+};
+export type VisitBundle = { visit: Visit; patient: Patient & { notes: string | null }; items: RxItem[] };
+
+/** Opens (or reopens) the visit note for a patient and returns its id. */
+export async function startVisit(patientId: string, appointmentId?: string) {
+  const r = await api<{ id: string }>("/visits", { method: "POST", body: JSON.stringify({ patientId, appointmentId }) });
+  return r.id;
+}
