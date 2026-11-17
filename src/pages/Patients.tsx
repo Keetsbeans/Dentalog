@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { Link } from "react-router";
 import { api, type Patient } from "../lib/api";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { useToast } from "../components/Toast";
 
-const ALERTS = ["Diabetic", "BP", "Blood thinners", "Allergy", "Pregnant", "Heart condition"];
+const ALERTS = ["Diabetic", "BP", "Blood thinners", "Penicillin allergy", "Other allergy", "Pregnant", "Heart condition"];
 
 export function Patients() {
   const toast = useToast();
@@ -53,7 +54,7 @@ export function Patients() {
             <tbody>
               {rows?.map((p) => (
                 <tr key={p.id}>
-                  <td><b>{p.name}</b><div className="muted">{p.code}{p.fileNo ? ` · ${p.fileNo}` : ""}</div></td>
+                  <td><Link to={`/patients/${p.id}`} className="plain"><b>{p.name}</b></Link><div className="muted">{p.code}{p.fileNo ? ` · ${p.fileNo}` : ""}</div></td>
                   <td className="nums">+91 {p.phone.slice(0, 5)} {p.phone.slice(5)}</td>
                   <td>{p.alerts.map((a) => <span key={a} className="tag alert">{a}</span>)}</td>
                   <td className="right">

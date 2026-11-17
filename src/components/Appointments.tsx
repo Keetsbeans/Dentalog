@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { api, ApiError, type Appointment, type ApptStatus, type Patient } from "../lib/api";
+import { Link, useNavigate } from "react-router";
+import { api, ApiError, startVisit, type Appointment, type ApptStatus, type Patient } from "../lib/api";
 import { useClinic } from "../lib/clinic";
 import { useToast } from "./Toast";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -153,8 +154,17 @@ export function BookDialog({ day: day0, time: time0, onClose, onSaved }: {
 /** Tap an appointment: see it, move it along, mark no-show, cancel or delete. */
 export function ApptDialog({ appt, onClose, onChanged }: { appt: Appointment; onClose: () => void; onChanged: () => void }) {
   const toast = useToast();
+  const nav = useNavigate();
   const [err, setErr] = useState("");
   const [confirm, setConfirm] = useState(false);
+
+  /** Opening the note also moves a waiting patient into the chair. */
+  async function openNote() {
+    try {
+      if (appt.status === "booked" || appt.status === "arrived") await setStatus(appt, "in_chair");
+      nav(`/visits/${await startVisit(appt.patient.id, appt.id)}`);
+    } catch (e) { setErr((e as Error).message); }
+  }
   const next = NEXT_STEP[appt.status];
   const { day } = utcToIst(appt.startsAt);
 
@@ -202,6 +212,10 @@ export function ApptDialog({ appt, onClose, onChanged }: { appt: Appointment; on
         </dl>
         {err && <p className="error" role="alert">{err}</p>}
         {next && <button type="button" className="btn primary" onClick={() => change(next[0])}>{next[1]}</button>}
+        {appt.status !== "cancelled" && appt.status !== "no_show" && (
+          <button type="button" className="btn" onClick={openNote}>{appt.status === "done" ? "Open visit note" : "Start visit note"}</button>
+        )}
+        <Link className="link-btn" to={`/patients/${appt.patient.id}`}>Open {appt.patient.name}’s record</Link>
         <div className="dialog-actions spread">
           {appt.status === "booked" && <button type="button" className="btn" onClick={() => change("no_show")}>No-show</button>}
           {(appt.status === "booked" || appt.status === "arrived") && <button type="button" className="btn" onClick={() => change("cancelled")}>Cancel visit</button>}

@@ -8,6 +8,13 @@
       "when": 1794938579262,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1794939687360,
+      "tag": "0002_visit_tooth_generic",
+      "breakpoints": true
     }
   ]
 }

@@ -7,6 +7,8 @@ import { audit, isTrashKind, purgeExpired, purgeOne, restore, softDelete, type T
 import { daysLeft, removalDate } from "../shared/trash";
 import { formatNumber, type Series } from "../shared/numbering";
 import { istToUtc, label12, overlaps, utcToIst } from "../shared/time";
+import { directions, quantity, type Food } from "../shared/rx";
+import { findDrug, penicillinAllergy } from "../shared/drugs";
 
 const app = new Hono<{ Bindings: Env }>().basePath("/api");
 const db = (env: Env) => drizzle(env.DB, { schema: s });
@@ -60,6 +62,130 @@ app.post("/patients", async (c) => {
   });
   await audit(db(c.env), CLINIC_ID, "create", "patient", id);
   return c.json({ id, code, fileNo }, 201);
+});
+
+// ---------- Patient record ----------
+const parsePatient = (p: typeof s.patients.$inferSelect) => ({ ...p, alerts: JSON.parse(p.alertsJson) as string[] });
+
+app.get("/patients/:id", async (c) => {
+  const d = db(c.env);
+  const id = c.req.param("id");
+  const [p] = await d.select().from(s.patients)
+    .where(and(eq(s.patients.id, id), eq(s.patients.clinicId, CLINIC_ID), isNull(s.patients.deletedAt)));
+  if (!p) return c.json({ error: "That patient was not found." }, 404);
+  const visits = await d.select().from(s.visits)
+    .where(and(eq(s.visits.patientId, id), isNull(s.visits.deletedAt))).orderBy(desc(s.visits.createdAt));
+  const appts = await d.select().from(s.appointments)
+    .where(and(eq(s.appointments.patientId, id), isNull(s.appointments.deletedAt))).orderBy(desc(s.appointments.startsAt)).limit(50);
+  return c.json({
+    patient: parsePatient(p),
+    visits: visits.map(visitOut),
+    appointments: appts,
+  });
+});
+
+// ---------- Visits and prescriptions ----------
+type VisitIn = {
+  vitals?: Record<string, string>; tooth?: string; complaint?: string; findings?: string[]; diagnosis?: string[];
+  notes?: string; advice?: string[]; adviceNote?: string; nextVisit?: string;
+  items?: { drug: string; generic?: string | null; dose: string; days: number | null; food: Food }[];
+};
+
+function visitOut(v: typeof s.visits.$inferSelect) {
+  return {
+    id: v.id, patientId: v.patientId, appointmentId: v.appointmentId, createdAt: v.createdAt, signedAt: v.signedAt,
+    vitals: JSON.parse(v.vitalsJson) as Record<string, string>, tooth: v.tooth, complaint: v.complaint,
+    findings: JSON.parse(v.findingsJson) as string[], diagnosis: JSON.parse(v.diagnosisJson) as string[],
+    notes: v.notes, advice: JSON.parse(v.adviceJson) as string[], adviceNote: v.adviceNote, nextVisit: v.nextVisit,
+  };
+}
+
+async function loadVisit(env: Env, id: string) {
+  const d = db(env);
+  const [v] = await d.select().from(s.visits)
+    .where(and(eq(s.visits.id, id), eq(s.visits.clinicId, CLINIC_ID), isNull(s.visits.deletedAt)));
+  if (!v) return null;
+  const [p] = await d.select().from(s.patients).where(eq(s.patients.id, v.patientId));
+  const items = await d.select().from(s.prescriptionItems)
+    .where(eq(s.prescriptionItems.visitId, id)).orderBy(asc(s.prescriptionItems.sortOrder));
+  return { visit: visitOut(v), patient: parsePatient(p!), items };
+}
+
+/** Starts a visit note for a patient, or reopens today's unsigned one for the same appointment. */
+app.post("/visits", async (c) => {
+  const b = await c.req.json<{ patientId?: string; appointmentId?: string }>();
+  const d = db(c.env);
+  const [p] = await d.select().from(s.patients)
+    .where(and(eq(s.patients.id, b.patientId ?? ""), eq(s.patients.clinicId, CLINIC_ID), isNull(s.patients.deletedAt)));
+  if (!p) return c.json({ error: "That patient was not found." }, 404);
+  if (b.appointmentId) {
+    const [open] = await d.select({ id: s.visits.id }).from(s.visits)
+      .where(and(eq(s.visits.appointmentId, b.appointmentId), isNull(s.visits.deletedAt)));
+    if (open) return c.json({ id: open.id });
+  }
+  let complaint: string | null = null;
+  if (b.appointmentId) {
+    const [a] = await d.select().from(s.appointments).where(eq(s.appointments.id, b.appointmentId));
+    complaint = a?.notes ?? null;
+  }
+  const id = crypto.randomUUID();
+  await d.insert(s.visits).values({ id, clinicId: CLINIC_ID, patientId: p.id, appointmentId: b.appointmentId ?? null, complaint });
+  await audit(d, CLINIC_ID, "create", "visit", id, { patient: p.code });
+  return c.json({ id }, 201);
+});
+
+app.get("/visits/:id", async (c) => {
+  const v = await loadVisit(c.env, c.req.param("id"));
+  return v ? c.json(v) : c.json({ error: "That visit was not found." }, 404);
+});
+
+/** Saves the draft. Prescription lines are replaced as a whole, with directions written from the dose. */
+app.put("/visits/:id", async (c) => {
+  const id = c.req.param("id");
+  const cur = await loadVisit(c.env, id);
+  if (!cur) return c.json({ error: "That visit was not found." }, 404);
+  if (cur.visit.signedAt) return c.json({ error: "This note is signed and locked." }, 409);
+  const b = await c.req.json<VisitIn>();
+  const items = b.items ?? [];
+  let lines: (typeof s.prescriptionItems.$inferInsert)[];
+  try {
+    lines = items.filter((i) => i.drug.trim()).map((i, n) => ({
+      id: crypto.randomUUID(), visitId: id, drug: i.drug.trim(), generic: i.generic ?? findDrug(i.drug)?.generic ?? null,
+      dose: i.dose.trim().toUpperCase(), days: i.days, food: i.food,
+      instruction: directions(i.dose, i.days, i.food), quantity: quantity(i.dose, i.days), sortOrder: n,
+    }));
+  } catch (e) {
+    return c.json({ error: (e as Error).message }, 400);
+  }
+  const d = db(c.env);
+  const clean = (x?: string) => x?.trim() || null;
+  await d.batch([
+    d.update(s.visits).set({
+      vitalsJson: JSON.stringify(b.vitals ?? {}), tooth: clean(b.tooth), complaint: clean(b.complaint),
+      findingsJson: JSON.stringify(b.findings ?? []), diagnosisJson: JSON.stringify(b.diagnosis ?? []),
+      notes: clean(b.notes), adviceJson: JSON.stringify(b.advice ?? []), adviceNote: clean(b.adviceNote), nextVisit: clean(b.nextVisit),
+    }).where(eq(s.visits.id, id)),
+    d.delete(s.prescriptionItems).where(eq(s.prescriptionItems.visitId, id)),
+    ...(lines.length ? [d.insert(s.prescriptionItems).values(lines)] : []),
+  ]);
+  return c.json({ saved: true, savedAt: new Date().toISOString() });
+});
+
+/** Signing locks the note. Checks the same things the screen warns about. */
+app.post("/visits/:id/sign", async (c) => {
+  const id = c.req.param("id");
+  const cur = await loadVisit(c.env, id);
+  if (!cur) return c.json({ error: "That visit was not found." }, 404);
+  if (cur.visit.signedAt) return c.json({ signedAt: cur.visit.signedAt });
+  const { alerts } = cur.patient;
+  if (alerts.includes("Diabetic") && !cur.visit.vitals.sugar?.trim()) return c.json({ error: "Add today’s blood sugar before signing (diabetic patient)." }, 400);
+  const b = await c.req.json<{ allergyOverride?: boolean }>().catch(() => ({} as { allergyOverride?: boolean }));
+  const clash = penicillinAllergy(alerts) && cur.items.find((i) => findDrug(i.drug)?.penicillin);
+  if (clash && !b.allergyOverride) return c.json({ error: `Penicillin allergy recorded, and ${clash.drug} is a penicillin.` }, 400);
+  const signedAt = new Date().toISOString();
+  await db(c.env).update(s.visits).set({ signedAt }).where(eq(s.visits.id, id));
+  await audit(db(c.env), CLINIC_ID, "sign", "visit", id, clash ? { allergyOverride: clash.drug } : undefined);
+  return c.json({ signedAt });
 });
 
 // ---------- Appointments ----------
@@ -185,6 +311,10 @@ app.get("/trash", async (c) => {
     const { day, time } = utcToIst(a.startsAt);
     push("appointment", a.id, `Appointment · ${name}`, `${a.visitType} · ${day} ${label12(time)}`, a.deletedAt, a.deletedReason);
   }
+  for (const { v, name } of await d.select({ v: s.visits, name: s.patients.name }).from(s.visits)
+    .innerJoin(s.patients, eq(s.patients.id, s.visits.patientId))
+    .where(and(eq(s.visits.clinicId, CLINIC_ID), isNotNull(s.visits.deletedAt))))
+    push("visit", v.id, `Visit note · ${name}`, utcToIst(v.createdAt).day, v.deletedAt, v.deletedReason);
   for (const r of await d.select().from(s.files).where(and(eq(s.files.clinicId, CLINIC_ID), isNotNull(s.files.deletedAt))))
     push("file", r.id, r.filename, r.kind, r.deletedAt, r.deletedReason);
   items.sort((a, b) => a.deletedAt.localeCompare(b.deletedAt));
