@@ -4,8 +4,8 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     headers: { "content-type": "application/json", ...(init?.headers ?? {}) },
   });
-  const body = (await res.json().catch(() => ({}))) as T & { error?: string };
-  if (!res.ok) throw new Error(body.error ?? `Request failed (${res.status})`);
+  const body = (await res.json().catch(() => ({}))) as T & { error?: string; clash?: boolean };
+  if (!res.ok) throw new ApiError(body.error ?? `Request failed (${res.status})`, res.status, !!body.clash);
   return body;
 }
 
@@ -19,4 +19,16 @@ export type TrashItem = {
   id: string; title: string; detail: string; deletedAt: string; reason: string | null; daysLeft: number;
 };
 
-export type Clinic = { id: string; name: string; doctorName: string; qualification: string | null; phone: string | null; address: string | null };
+export type Clinic = { id: string; name: string; doctorName: string; qualification: string | null; phone: string | null; address: string | null; hoursJson: string };
+
+export type ApptStatus = "booked" | "arrived" | "in_chair" | "done" | "no_show" | "cancelled";
+export type Appointment = {
+  id: string; startsAt: string; minutes: number; visitType: string; status: ApptStatus;
+  squeezedIn: boolean; notes: string | null;
+  patient: { id: string; name: string; code: string; phone: string; alerts: string[] };
+};
+
+/** Errors that come with a flag, e.g. a 409 double booking. */
+export class ApiError extends Error {
+  constructor(message: string, public status: number, public clash = false) { super(message); }
+}

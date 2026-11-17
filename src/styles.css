@@ -87,3 +87,78 @@ td.soon { color: var(--red); font-weight: 700; }
 .toast-bar > div { height: 100%; background: #5EEAD4; animation: shrink 6s linear forwards; }
 @keyframes shrink { from { width: 100%; } to { width: 0; } }
 @media (prefers-reduced-motion: reduce) { .toast-bar > div { animation: none; } }
+
+/* ---------- Appointments ---------- */
+.link-btn { align-self: flex-start; border: 0; background: none; color: var(--teal); font-weight: 700; font-size: 14px; padding: 6px 0; cursor: pointer; }
+.picklist { list-style: none; margin: 0; padding: 4px; border: 1px solid var(--line); border-radius: 10px; }
+.picklist button { width: 100%; text-align: left; min-height: 44px; border: 0; background: none; border-radius: 8px; padding: 6px 10px; font-size: 14px; cursor: pointer; }
+.picklist button:hover, .picklist button:focus-visible { background: var(--teal-soft); }
+.picked { display: flex; justify-content: space-between; align-items: center; gap: 8px; background: var(--teal-soft); border-radius: 10px; padding: 8px 12px; font-size: 14px; }
+.row2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
+.chip.teal.on { background: var(--teal); border-color: var(--teal); color: #fff; }
+.dialog { max-height: 86vh; overflow-y: auto; }
+.dialog .warn, .warn { background: var(--amber-soft); color: var(--amber-ink); border-radius: 10px; padding: 10px 12px; font-size: 13px; margin: 0; }
+.error-box { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; background: var(--red-soft); border-radius: 10px; padding: 10px 12px; }
+.error-box .error { margin: 0; }
+.dialog-head { display: flex; justify-content: space-between; gap: 8px; }
+.dialog-head h2 { margin: 0 0 2px; }
+.toast-close.dark { color: var(--muted); }
+.facts { display: grid; grid-template-columns: 70px 1fr; gap: 8px 12px; margin: 4px 0; font-size: 14px; }
+.facts dt { color: var(--muted); }
+.facts dd { margin: 0; font-weight: 600; }
+.dialog-actions.spread { justify-content: flex-start; }
+.dialog-actions.spread .danger-outline { margin-left: auto; }
+
+.pill { display: inline-block; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
+.s-booked.pill, .cal-appt.s-booked { background: var(--teal-soft); color: var(--teal-ink); }
+.s-arrived.pill, .cal-appt.s-arrived { background: var(--amber-soft); color: var(--amber-ink); }
+.s-in_chair.pill, .cal-appt.s-in_chair { background: var(--teal); color: #fff; }
+.s-done.pill, .cal-appt.s-done { background: var(--line-soft); color: var(--ink-2); }
+.s-no_show.pill, .cal-appt.s-no_show { background: var(--red-soft); color: var(--red); }
+.s-cancelled.pill, .cal-appt.s-cancelled { background: #fff; color: var(--muted); text-decoration: line-through; border: 1px dashed #CBD5D9; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 10px; }
+
+.cal-head h1 { flex: 1 1 200px; font-size: 22px; }
+.cal-nav { display: flex; gap: 6px; }
+.cal-nav .btn { min-width: 44px; min-height: 44px; font-size: 16px; }
+.seg { display: inline-flex; border: 1px solid #CBD5D9; border-radius: 10px; overflow: hidden; }
+.seg button { min-height: 44px; padding: 0 16px; border: 0; background: #fff; font-weight: 600; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--teal); color: #fff; }
+.cal-card { padding: 0; overflow-x: auto; }
+.cal { display: grid; min-width: min-content; }
+.cal-corner { border-bottom: 1px solid var(--line); }
+.cal-dayhead { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 10px 4px; border: 0; border-bottom: 1px solid var(--line); border-left: 1px solid var(--line-soft); background: #fff; font-size: 13px; cursor: pointer; }
+.cal-dayhead b { font-size: 15px; }
+.cal-dayhead.is-today b { color: var(--teal); }
+.cal-times > div { font-size: 11px; color: var(--muted); text-align: right; padding: 2px 8px 0 0; box-sizing: border-box; }
+.cal-col { position: relative; border-left: 1px solid var(--line-soft); }
+.cal-slot, .cal-closed { position: absolute; left: 0; right: 0; border: 0; border-top: 1px solid var(--line-soft); background: transparent; }
+.cal-slot { cursor: pointer; }
+.cal-slot:hover, .cal-slot:focus-visible { background: var(--teal-soft); }
+.cal-closed { background: repeating-linear-gradient(45deg, #F4F7F8, #F4F7F8 6px, #EEF2F3 6px, #EEF2F3 12px); }
+.cal-appt { position: absolute; border: 0; border-radius: 8px; padding: 4px 8px; text-align: left; font-size: 12px; display: flex; flex-direction: column; gap: 1px; overflow: hidden; cursor: pointer; z-index: 1; }
+.cal-appt b { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cal-appt span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cal-appt.squeezed { box-shadow: inset 3px 0 0 var(--red); }
+.cal-now { position: absolute; left: 0; right: 0; height: 2px; background: var(--red); z-index: 2; pointer-events: none; }
+
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.stat { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px 16px; display: flex; flex-direction: column; }
+.stat b { font-size: 24px; }
+.stat span { color: var(--muted); font-size: 13px; }
+.queue { list-style: none; margin: 0; padding: 0; }
+.q-row { display: grid; grid-template-columns: 150px minmax(0, 1fr) auto auto; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line-soft); }
+.q-row.s-cancelled, .q-row.s-no_show { opacity: 0.6; }
+.q-time { font-size: 13px; color: var(--ink-2); }
+.q-who { border: 0; background: none; text-align: left; font-size: 14px; display: flex; flex-wrap: wrap; gap: 2px 6px; align-items: baseline; cursor: pointer; padding: 4px 0; min-height: 44px; }
+.q-sub { flex-basis: 100%; color: var(--muted); font-size: 13px; }
+@container (max-width: 760px) {
+  .q-row { grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; }
+  .q-time { grid-column: 1 / -1; }
+  .q-row > .btn { grid-column: 1 / -1; }
+  .stats { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+  .stat { padding: 10px; }
+  .stat b { font-size: 20px; }
+  .stat span { font-size: 12px; }
+  .cal-head h1 { order: -1; flex-basis: 100%; }
+}
