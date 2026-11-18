@@ -37,7 +37,7 @@ function dayBounds(hours: Hours): [number, number] {
 }
 
 export function Calendar() {
-  const { hours } = useClinic();
+  const { hours, settings } = useClinic();
   const toast = useToast();
   const [view, setView] = useState<"day" | "week">(narrow() ? "day" : "week");
   const [day, setDay] = useState(todayIst());
@@ -100,7 +100,7 @@ export function Calendar() {
               <button type="button" key={d} className={"cal-dayhead" + (d === today ? " is-today" : "")} onClick={() => { setDay(d); setView("day"); }}>
                 <span>{dayLabel(d, { weekday: "short" })}</span>
                 <b>{dayLabel(d, { day: "numeric", month: "short" })}</b>
-                <span className="muted">{hours[weekday(d)] ? `${n} booked` : "Closed"}</span>
+                <span className="muted">{settings.holidays.find((x) => x.day === d) ? `Holiday${settings.holidays.find((x) => x.day === d)!.name ? `: ${settings.holidays.find((x) => x.day === d)!.name}` : ""}` : hours[weekday(d)] ? `${n} booked` : "Closed"}</span>
               </button>
             );
           })}
@@ -109,7 +109,7 @@ export function Calendar() {
             {rows.map((t) => <div key={t} style={{ height: ROW }}>{t.endsWith(":00") || t === rows[0] ? label12(t) : ""}</div>)}
           </div>
           {days.map((d) => {
-            const open_ = new Set(slots(hours, d));
+            const open_ = new Set(slots(hours, d, 30, settings.holidays));
             const mine = appts?.filter((a) => utcToIst(a.startsAt).day === d) ?? [];
             const place = lanes(mine);
             return (

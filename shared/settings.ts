@@ -1,8 +1,10 @@
 import { DRUG_SETS, DRUGS, type Drug } from "./drugs";
 import { SERVICES } from "./services";
 import { DEFAULT_TEMPLATES, type Templates } from "./messages";
+import { DEFAULT_PRINT, readPrint, type PrintLayout } from "./print";
 
-export type Service = { name: string; paise: number; perTooth?: boolean };
+export type Service = { name: string; paise: number; perTooth?: boolean; group?: string };
+export type Holiday = { day: string; name: string };
 export type VisitType = { name: string; minutes: number };
 export type Lab = { name: string; phone?: string; days: number; work?: string };
 
@@ -21,6 +23,9 @@ export type ClinicSettings = {
   soonMinutes: number;
   /** Google review link for the "Ask for a review" message. */
   reviewLink: string;
+  /** Days the clinic is closed beyond the weekly hours. */
+  holidays: Holiday[];
+  print: PrintLayout;
 };
 
 export const DEFAULT_SETTINGS: ClinicSettings = {
@@ -37,6 +42,8 @@ export const DEFAULT_SETTINGS: ClinicSettings = {
   templates: DEFAULT_TEMPLATES,
   soonMinutes: 60,
   reviewLink: "",
+  holidays: [],
+  print: DEFAULT_PRINT,
 };
 
 /** The first wording, signed by the doctor. Saved copies of it move to the new automated wording. */
@@ -65,5 +72,7 @@ export function readSettings(json: string | null | undefined): ClinicSettings {
     soonMinutes: [30, 60, 90, 120].includes(Number(saved.soonMinutes)) ? Number(saved.soonMinutes) : DEFAULT_SETTINGS.soonMinutes,
     reviewLink: typeof saved.reviewLink === "string" ? saved.reviewLink : "",
     templates: { ...DEFAULT_TEMPLATES, ...unchangedOld(saved.templates) },
+    holidays: Array.isArray(saved.holidays) ? saved.holidays.filter((h) => h && /^\d{4}-\d{2}-\d{2}$/.test(h.day)).map((h) => ({ day: h.day, name: String(h.name ?? "") })) : [],
+    print: readPrint(saved.print),
   };
 }

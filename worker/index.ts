@@ -20,6 +20,7 @@ import { logSent, queue, sentLog } from "./messages";
 import { getTeeth, putTooth } from "./teeth";
 import { today } from "./today";
 import { publicGet, publicPost } from "./public";
+import { activity, deleteImage, exportAll, getImage, imageVersions, putImage } from "./clinicData";
 
 const app = new Hono<{ Bindings: Env }>().basePath("/api");
 const db = (env: Env) => drizzle(env.DB, { schema: s });
@@ -37,8 +38,13 @@ async function clinicSettings(env: Env) {
 
 app.get("/clinic", async (c) => {
   const [clinic] = await db(c.env).select().from(s.clinics).where(eq(s.clinics.id, CLINIC_ID));
-  return clinic ? c.json({ ...clinic, settings: readSettings(clinic.settingsJson) }) : c.json({ error: "Clinic not set up yet." }, 404);
+  return clinic ? c.json({ ...clinic, settings: readSettings(clinic.settingsJson), images: await imageVersions(c.env) }) : c.json({ error: "Clinic not set up yet." }, 404);
 });
+app.get("/clinic/images/:key", getImage);
+app.put("/clinic/images/:key", putImage);
+app.delete("/clinic/images/:key", deleteImage);
+app.get("/export", exportAll);
+app.get("/activity", activity);
 
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 /** Settings → Save. Only the fields sent are changed. */

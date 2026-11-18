@@ -50,6 +50,13 @@
       "when": 1795005185220,
       "tag": "0007_confirm_links",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1795005752264,
+      "tag": "0008_clinic_images",
+      "breakpoints": true
     }
   ]
 }

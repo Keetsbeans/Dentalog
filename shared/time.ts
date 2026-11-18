@@ -53,9 +53,15 @@ export function label12(time: string): string {
   return `${((h + 11) % 12) + 1}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`;
 }
 
+/** Opening hours on one date: null when it's a closed weekday or a holiday. */
+export function hoursOn(hours: Hours, day: string, holidays: { day: string }[] = []): [string, string] | null {
+  if (holidays.some((h) => h.day === day)) return null;
+  return hours[weekday(day)] ?? null;
+}
+
 /** Bookable slot start times for a day, every `step` minutes, or [] when closed. */
-export function slots(hours: Hours, day: string, step = 30): string[] {
-  const h = hours[weekday(day)];
+export function slots(hours: Hours, day: string, step = 30, holidays: { day: string }[] = []): string[] {
+  const h = hoursOn(hours, day, holidays);
   if (!h) return [];
   const out: string[] = [];
   for (let t = toMinutes(h[0]); t + step <= toMinutes(h[1]); t += step) out.push(fromMinutes(t));
