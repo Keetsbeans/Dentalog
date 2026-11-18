@@ -186,6 +186,22 @@ export const labOrders = sqliteTable("lab_orders", {
   ...softDelete,
 });
 
+/** WhatsApp messages the clinic sent (opened in WhatsApp from Dentalog). */
+export const messages = sqliteTable(
+  "messages",
+  {
+    id: id(),
+    clinicId: clinicId(),
+    patientId: text("patient_id").notNull().references(() => patients.id),
+    kind: text("kind", { enum: ["reminder", "recall", "balance", "lab_ready", "other"] }).notNull(),
+    /** The appointment, bill or lab order the message was about. */
+    refId: text("ref_id"),
+    body: text("body").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("messages_ref").on(t.clinicId, t.kind, t.refId)],
+);
+
 /** X-rays, photos, consent forms. The file itself lives in R2 under `r2Key`. */
 export const files = sqliteTable("files", {
   id: id(),

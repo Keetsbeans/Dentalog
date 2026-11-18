@@ -51,6 +51,7 @@ export function Settings() {
         visitTypes: S.visitTypes.map((v) => ({ ...v, name: v.name.trim() })).filter((v) => v.name),
         labs: S.labs.map((l) => ({ ...l, name: l.name.trim() })).filter((l) => l.name),
         labWork: S.labWork.map((x) => x.trim()).filter(Boolean),
+        templates: S.templates,
       };
       await api("/clinic", { method: "PUT", body: JSON.stringify({ ...draft!.details, hours: draft!.hours, settings: clean }) });
       await reload(); setDirty(false);

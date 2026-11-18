@@ -1,5 +1,6 @@
 import { DRUG_SETS, DRUGS, type Drug } from "./drugs";
 import { SERVICES } from "./services";
+import { DEFAULT_TEMPLATES, type Templates } from "./messages";
 
 export type Service = { name: string; paise: number; perTooth?: boolean };
 export type VisitType = { name: string; minutes: number };
@@ -14,6 +15,8 @@ export type ClinicSettings = {
   labs: Lab[];
   /** Lab work the order form offers. */
   labWork: string[];
+  /** WhatsApp message wording, one per kind of message. */
+  templates: Templates;
 };
 
 export const DEFAULT_SETTINGS: ClinicSettings = {
@@ -27,6 +30,7 @@ export const DEFAULT_SETTINGS: ClinicSettings = {
   ],
   labs: [{ name: "Lab A", days: 7 }, { name: "Lab B", days: 10 }],
   labWork: ["PFM crown", "Zirconia crown", "Bridge", "Complete denture", "Partial denture", "Night guard", "Retainer"],
+  templates: DEFAULT_TEMPLATES,
 };
 
 /** Saved settings over the defaults, one key at a time. Bad or missing data falls back safely. */
@@ -40,5 +44,6 @@ export function readSettings(json: string | null | undefined): ClinicSettings {
     visitTypes: Array.isArray(saved.visitTypes) && saved.visitTypes.length ? saved.visitTypes : DEFAULT_SETTINGS.visitTypes,
     labs: Array.isArray(saved.labs) ? saved.labs : DEFAULT_SETTINGS.labs,
     labWork: Array.isArray(saved.labWork) && saved.labWork.length ? saved.labWork : DEFAULT_SETTINGS.labWork,
+    templates: { ...DEFAULT_TEMPLATES, ...(saved.templates && typeof saved.templates === "object" ? saved.templates : {}) },
   };
 }
