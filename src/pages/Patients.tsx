@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router";
 import { api, type Patient } from "../lib/api";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { useToast } from "../components/Toast";
+import { PatientForm } from "../components/PatientForm";
+import { formatPhone } from "../../shared/phone";
 
-const ALERTS = ["Diabetic", "BP", "Blood thinners", "Penicillin allergy", "Other allergy", "Pregnant", "Heart condition"];
 
 export function Patients() {
   const toast = useToast();
@@ -55,7 +56,7 @@ export function Patients() {
               {rows?.map((p) => (
                 <tr key={p.id}>
                   <td><Link to={`/patients/${p.id}`} className="plain"><b>{p.name}</b></Link><div className="muted">{p.code}{p.fileNo ? ` · ${p.fileNo}` : ""}</div></td>
-                  <td className="nums">+91 {p.phone.slice(0, 5)} {p.phone.slice(5)}</td>
+                  <td className="nums">{formatPhone(p.phoneCc, p.phone)}</td>
                   <td>{p.alerts.map((a) => <span key={a} className="tag alert">{a}</span>)}</td>
                   <td className="right">
                     <button type="button" className="icon-btn" aria-label={`Delete ${p.name}`} onClick={() => setToDelete(p)}>
@@ -71,7 +72,7 @@ export function Patients() {
         </div>
       </div>
 
-      {adding && <AddPatient onClose={() => setAdding(false)} onSaved={(msg) => { setAdding(false); toast({ title: msg }); load(); }} />}
+      {adding && <PatientForm onClose={() => setAdding(false)} onSaved={(msg) => { setAdding(false); toast({ title: msg }); load(); }} />}
 
       <ConfirmDialog
         open={!!toDelete}
@@ -83,47 +84,5 @@ export function Patients() {
         {toDelete?.code}{toDelete?.fileNo ? ` · ${toDelete.fileNo}` : ""}. Their visits, notes, X-rays, prescriptions and receipts are moved with them.
       </ConfirmDialog>
     </>
-  );
-}
-
-function AddPatient({ onClose, onSaved }: { onClose: () => void; onSaved: (msg: string) => void }) {
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [gender, setGender] = useState<"F" | "M" | "O">("F");
-  const [alerts, setAlerts] = useState<string[]>([]);
-  const [err, setErr] = useState("");
-  async function save(e: FormEvent) {
-    e.preventDefault();
-    try {
-      const r = await api<{ code: string }>("/patients", { method: "POST", body: JSON.stringify({ name, phone, gender, alerts }) });
-      onSaved(`${name.trim()} added as ${r.code}.`);
-    } catch (e) { setErr((e as Error).message); }
-  }
-  return (
-    <div className="overlay">
-      <form className="dialog open" onSubmit={save} aria-labelledby="add-title">
-        <h2 id="add-title">Add patient</h2>
-        <label className="field">Full name<input className="input" value={name} onChange={(e) => setName(e.target.value)} required /></label>
-        <label className="field">Mobile (WhatsApp)<input className="input" inputMode="numeric" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="10 digits" /></label>
-        <label className="field">Gender
-          <select className="input" value={gender} onChange={(e) => setGender(e.target.value as "F" | "M" | "O")}>
-            <option value="F">Female</option><option value="M">Male</option><option value="O">Other</option>
-          </select>
-        </label>
-        <fieldset className="field"><legend>Medical alerts</legend>
-          <div className="chips">
-            {ALERTS.map((a) => {
-              const on = alerts.includes(a);
-              return <button key={a} type="button" aria-pressed={on} className={"chip" + (on ? " on" : "")} onClick={() => setAlerts(on ? alerts.filter((x) => x !== a) : [...alerts, a])}>{a}</button>;
-            })}
-          </div>
-        </fieldset>
-        {err && <p className="error" role="alert">{err}</p>}
-        <div className="dialog-actions">
-          <button type="button" className="btn" onClick={onClose}>Cancel</button>
-          <button type="submit" className="btn primary">Save patient</button>
-        </div>
-      </form>
-    </div>
   );
 }

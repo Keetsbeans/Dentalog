@@ -12,7 +12,8 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export type Patient = {
-  id: string; code: string; fileNo: string | null; name: string; phone: string;
+  id: string; code: string; fileNo: string | null; name: string; phone: string; phoneCc: string;
+  email: string | null; emailConfirmedAt: string | null; notes?: string | null; whatsappConsent?: boolean;
   gender: "F" | "M" | "O" | null; birthYear: number | null; alerts: string[]; createdAt: string;
 };
 
@@ -28,7 +29,7 @@ export type ApptStatus = "booked" | "arrived" | "in_chair" | "done" | "no_show" 
 export type Appointment = {
   id: string; startsAt: string; minutes: number; visitType: string; status: ApptStatus;
   squeezedIn: boolean; notes: string | null;
-  patient: { id: string; name: string; code: string; phone: string; alerts: string[] };
+  patient: { id: string; name: string; code: string; phone: string; phoneCc: string; alerts: string[] };
 };
 
 /** Errors that come with a flag, e.g. a 409 double booking. */
@@ -43,7 +44,8 @@ export type Visit = {
   vitals: Record<string, string>; tooth: string | null; complaint: string | null; findings: string[]; diagnosis: string[];
   notes: string | null; advice: string[]; adviceNote: string | null; nextVisit: string | null;
 };
-export type VisitBundle = { visit: Visit; patient: Patient & { notes: string | null }; items: RxItem[] };
+export type Addendum = { id: string; text: string; createdAt: string };
+export type VisitBundle = { visit: Visit; patient: Patient & { notes: string | null }; items: RxItem[]; addenda: Addendum[] };
 
 /** Opens (or reopens) the visit note for a patient and returns its id. */
 export async function startVisit(patientId: string, appointmentId?: string) {
@@ -57,7 +59,11 @@ export type InvoiceSummary = {
   patient: { id: string; name: string; code: string; phone: string };
 };
 export type Receipt = { id: string; number: string; amountPaise: number; mode: PayMode; reference: string | null; receivedAt: string; invoiceId: string | null };
-export type Invoice = InvoiceSummary & { lines: { id: string; service: string; tooth: string | null; amountPaise: number }[]; receipts: Receipt[] };
+export type BillVersion = { lines: { service: string; tooth: string | null; amountPaise: number }[]; discountPaise: number; totalPaise: number };
+export type Invoice = InvoiceSummary & {
+  lines: { id: string; service: string; tooth: string | null; amountPaise: number }[]; receipts: Receipt[];
+  edits: { id: string; reason: string; createdAt: string; before: BillVersion; after: BillVersion }[];
+};
 
 export type LabOrder = {
   id: string; number: string; lab: string; work: string; tooth: string | null; shade: string | null;

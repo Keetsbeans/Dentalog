@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router";
-import { api, type Invoice, type Patient, type PayMode } from "../lib/api";
+import { api, type BillVersion, type Invoice, type Patient, type PayMode } from "../lib/api";
 import { useToast } from "./Toast";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { billTotal, PAY_MODES } from "../../shared/services";
@@ -8,6 +8,7 @@ import { useClinic } from "../lib/clinic";
 import { rupees } from "../../shared/money";
 import { dayLabel } from "./Appointments";
 import { label12, utcToIst } from "../../shared/time";
+import { formatPhone } from "../../shared/phone";
 
 /** "1,200" or "1200.50" → paise. Empty or bad → null. */
 export function toPaise(s: string): number | null {
@@ -94,7 +95,7 @@ export function NewBill({ patient: fixed, lines: lines0, onClose, onSaved }: {
           <div className="field">
             <label htmlFor="bill-q">Patient</label>
             <input id="bill-q" className="input" autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Name, patient ID or mobile" autoComplete="off" />
-            {found.length > 0 && <ul className="picklist">{found.map((p) => <li key={p.id}><button type="button" onClick={() => setPatient(p)}><b>{p.name}</b> <span className="muted">{p.code} · {p.phone}</span></button></li>)}</ul>}
+            {found.length > 0 && <ul className="picklist">{found.map((p) => <li key={p.id}><button type="button" onClick={() => setPatient(p)}><b>{p.name}</b> <span className="muted">{p.code} · {formatPhone(p.phoneCc, p.phone)}</span></button></li>)}</ul>}
           </div>
         )}
 
@@ -132,6 +133,50 @@ export function NewBill({ patient: fixed, lines: lines0, onClose, onSaved }: {
   );
 }
 
+/** Change a bill's services or discount. A reason is required and the old version stays in the bill's history. */
+function EditBill({ inv, onCancel, onSaved }: { inv: Invoice; onCancel: () => void; onSaved: () => void }) {
+  const { settings } = useClinic();
+  const [lines, setLines] = useState(inv.lines.map((l) => ({ service: l.service, tooth: l.tooth ?? "", amount: asRupees(l.amountPaise) })));
+  const [discount, setDiscount] = useState(inv.discountPaise ? asRupees(inv.discountPaise) : "");
+  const [reason, setReason] = useState("");
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+  const parsed = lines.map((l) => ({ service: l.service, tooth: l.tooth, amountPaise: toPaise(l.amount) ?? 0 }));
+  const total = billTotal(parsed, toPaise(discount) ?? 0);
+  async function save(e: FormEvent) {
+    e.preventDefault(); setErr(""); setBusy(true);
+    try {
+      await api(`/invoices/${inv.id}`, { method: "PUT", body: JSON.stringify({ lines: parsed, discountPaise: toPaise(discount) ?? 0, reason }) });
+      onSaved();
+    } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
+  }
+  return (
+    <form className="stack edit-bill" onSubmit={save}>
+      <h3>Edit bill {inv.number}</h3>
+      <div className="chips">
+        {settings.services.map((s) => <button key={s.name} type="button" className="chip" onClick={() => setLines([...lines, { service: s.name, tooth: "", amount: s.paise ? asRupees(s.paise) : "" }])}>+ {s.name}</button>)}
+      </div>
+      <div className="bill-lines">
+        {lines.map((l, i) => (
+          <div key={i} className="bill-line">
+            <label className="field grow"><span className="sr-only">Service</span><input className="input" value={l.service} onChange={(e) => setLines(lines.map((x, n) => n === i ? { ...x, service: e.target.value } : x))} /></label>
+            <label className="field tooth"><span className="sr-only">Tooth</span><input className="input" value={l.tooth} placeholder="Tooth" onChange={(e) => setLines(lines.map((x, n) => n === i ? { ...x, tooth: e.target.value } : x))} /></label>
+            <label className="field amt"><span className="sr-only">Amount in rupees</span><input className="input nums right" inputMode="decimal" value={l.amount} onChange={(e) => setLines(lines.map((x, n) => n === i ? { ...x, amount: e.target.value } : x))} /></label>
+            <button type="button" className="icon-btn" aria-label={`Remove ${l.service}`} onClick={() => setLines(lines.filter((_, n) => n !== i))}>×</button>
+          </div>
+        ))}
+        <div className="bill-line"><span className="grow muted">Discount (₹)</span><label className="field amt"><span className="sr-only">Discount in rupees</span><input className="input nums right" inputMode="decimal" value={discount} placeholder="0" onChange={(e) => setDiscount(e.target.value)} /></label><span className="icon-pad" /></div>
+        <div className="bill-total"><span>New total <span className="muted">(was {rupees(inv.totalPaise)})</span></span><b className="nums">{rupees(total)}</b></div>
+      </div>
+      <label className="field">Reason for the change (kept with the bill)<input className="input" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Wrong tooth number, discount agreed" /></label>
+      {err && <p className="error" role="alert">{err}</p>}
+      <div className="dialog-actions"><button type="button" className="btn" onClick={onCancel}>Cancel</button><button type="submit" className="btn primary" disabled={busy}>{busy ? "Saving…" : "Save changes"}</button></div>
+    </form>
+  );
+}
+
+const summary = (v: BillVersion) => v.lines.map((l) => `${l.service}${l.tooth ? ` (${l.tooth})` : ""} ${rupees(l.amountPaise)}`).join(", ") + (v.discountPaise ? `, discount ${rupees(v.discountPaise)}` : "");
+
 /** One bill: its lines, payments, take the balance, print a receipt, delete. */
 export function BillDialog({ id, onClose, onChanged }: { id: string; onClose: () => void; onChanged: () => void }) {
   const toast = useToast();
@@ -142,6 +187,7 @@ export function BillDialog({ id, onClose, onChanged }: { id: string; onClose: ()
   const [mode, setMode] = useState<PayMode>("upi");
   const [reference, setReference] = useState("");
   const [confirm, setConfirm] = useState(false);
+  const [editing, setEditing] = useState(false);
 
   const load = () => api<Invoice>(`/invoices/${id}`).then((r) => { setInv(r); setAmount(asRupees(r.balancePaise)); }).catch((e) => setErr((e as Error).message));
   useEffect(() => { load(); }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -194,7 +240,22 @@ export function BillDialog({ id, onClose, onChanged }: { id: string; onClose: ()
                 <tr className="strong"><td>Balance due</td><td className={"right nums" + (inv.balancePaise > 0 ? " due" : "")}>{inv.balancePaise > 0 ? rupees(inv.balancePaise) : "Nil"}</td></tr>
               </tbody>
             </table>
-            {paying ? (
+            {inv.edits.length > 0 && (
+              <details className="bill-history">
+                <summary>Changed {inv.edits.length === 1 ? "once" : `${inv.edits.length} times`} · see what changed</summary>
+                <ul>
+                  {inv.edits.map((e) => (
+                    <li key={e.id}>
+                      <b>{dayLabel(utcToIst(e.createdAt).day, { day: "numeric", month: "short", year: "numeric" })}, {label12(utcToIst(e.createdAt).time)}</b> · {e.reason}
+                      <span className="muted">Before: {summary(e.before)} = {rupees(e.before.totalPaise)}</span>
+                      <span className="muted">After: {summary(e.after)} = {rupees(e.after.totalPaise)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+            {editing ? <EditBill inv={inv} onCancel={() => setEditing(false)} onSaved={async () => { setEditing(false); await load(); onChanged(); toast({ title: `Bill ${inv.number} updated. The old version is kept in its history.` }); }} />
+            : paying ? (
               <form className="stack" onSubmit={pay}>
                 <PayFields amount={amount} setAmount={setAmount} mode={mode} setMode={setMode} reference={reference} setReference={setReference} />
                 <div className="dialog-actions"><button type="button" className="btn" onClick={() => setPaying(false)}>Cancel</button><button type="submit" className="btn primary">Save payment</button></div>
@@ -203,6 +264,7 @@ export function BillDialog({ id, onClose, onChanged }: { id: string; onClose: ()
             {err && <p className="error" role="alert">{err}</p>}
             <div className="dialog-actions spread">
               {inv.receipts.length > 0 && <button type="button" className="btn" onClick={() => printReceipt(inv.receipts[inv.receipts.length - 1]!.id)}>Print latest receipt</button>}
+              {!editing && <button type="button" className="btn" onClick={() => { setPaying(false); setEditing(true); }}>Edit bill</button>}
               <button type="button" className="btn danger-outline" onClick={() => setConfirm(true)}>Delete bill</button>
             </div>
           </>

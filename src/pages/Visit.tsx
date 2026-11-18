@@ -9,6 +9,7 @@ import { label12, utcToIst } from "../../shared/time";
 import { dayLabel } from "../components/Appointments";
 import { NewBill, printReceipt } from "../components/Billing";
 import { ToothPicker } from "../components/ToothChart";
+import { Addenda } from "../components/Addenda";
 
 const FINDINGS = ["Deep caries", "Tender on percussion", "Periapical widening on IOPA", "Mobility grade I", "Swelling", "Fractured cusp", "Calculus", "Bleeding gums"];
 const DIAGNOSES = ["Irreversible pulpitis", "Reversible pulpitis", "Dental caries", "Periapical abscess", "Gingivitis", "Chronic periodontitis", "Cracked tooth", "Impacted tooth"];
@@ -113,7 +114,7 @@ export function Visit() {
       </div>
       {patient.alerts.length > 0 && <div className="alert-bar" role="note"><b>Medical alerts:</b> {patient.alerts.join(" · ")}</div>}
       {error && <p className="error" role="alert">{error}</p>}
-      {locked && <p className="note-locked">This note is signed and locked. Changes after signing will come as addenda.</p>}
+      {locked && <p className="note-locked">This note is signed and locked. Add anything new as an addendum at the bottom.</p>}
 
       <div className="visit-grid">
         <section className="card stack">
@@ -210,6 +211,7 @@ export function Visit() {
           )}
         </section>
       </div>
+      {locked && <Addenda visitId={id!} items={data.addenda} onAdded={(a) => setData({ ...data, addenda: [...data.addenda, a] })} />}
       {billing && <NewBill patient={patient} onClose={() => setBilling(false)} onSaved={(msg, receiptId) => { setBilling(false); toast({ title: msg }); if (receiptId) printReceipt(receiptId); }} />}
     </>
   );

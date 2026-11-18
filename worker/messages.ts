@@ -11,7 +11,7 @@ type C = Context<{ Bindings: Env }>;
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const KINDS: MessageKind[] = ["reminder", "recall", "balance", "lab_ready"];
 
-export type QueuePatient = { id: string; name: string; code: string; phone: string; consent: boolean };
+export type QueuePatient = { id: string; name: string; code: string; phone: string; phoneCc: string; consent: boolean };
 export type QueueItem = {
   kind: MessageKind; refId: string; patient: QueuePatient;
   vars: Record<string, string>; detail: string; sentAt: string | null;
@@ -30,7 +30,7 @@ export async function queue(c: C) {
   const today = todayIst();
   const day = c.req.query("day") ?? addDays(today, 1);
   if (!DAY.test(day)) return c.json({ error: "Give the day as YYYY-MM-DD." }, 400);
-  const pCols = { id: s.patients.id, name: s.patients.name, code: s.patients.code, phone: s.patients.phone, consent: s.patients.whatsappConsent };
+  const pCols = { id: s.patients.id, name: s.patients.name, code: s.patients.code, phone: s.patients.phone, phoneCc: s.patients.phoneCc, consent: s.patients.whatsappConsent };
   const nowIso = new Date().toISOString();
 
   const [appts, labs, lastVisits, upcoming, invoices, paid, sent] = await Promise.all([

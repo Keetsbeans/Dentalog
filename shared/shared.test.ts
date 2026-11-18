@@ -110,9 +110,17 @@ describe("WhatsApp messages", async () => {
       .toContain("scaling appointment at Oyster on Thursday at 5:30 PM");
   });
   it("makes wa.me links for Indian mobiles only", () => {
-    expect(waLink("98400 12345", "Hi there")).toBe("https://wa.me/919840012345?text=Hi%20there");
-    expect(waLink("+91 9840012345", "x")).toBe("https://wa.me/919840012345?text=x");
-    expect(waLink("044 2345678", "x")).toBeNull();
+    expect(waLink("91", "98400 12345", "Hi there")).toBe("https://wa.me/919840012345?text=Hi%20there");
+    expect(waLink("971", "501234567", "x")).toBe("https://wa.me/971501234567?text=x");
+    expect(waLink("91", "044 2345678", "x")).toBeNull();
+  });
+  it("checks mobile numbers by country", async () => {
+    const { checkPhone, formatPhone } = await import("./phone");
+    expect(checkPhone("91", "9840012345")).toBeNull();
+    expect(checkPhone("91", "98400123456")).not.toBeNull();
+    expect(checkPhone("91", "1234567890")).not.toBeNull();
+    expect(checkPhone("971", "501234567")).toBeNull();
+    expect(formatPhone("91", "9840012345")).toBe("+91 98400 12345");
   });
 });
 

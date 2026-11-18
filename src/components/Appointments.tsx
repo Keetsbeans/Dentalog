@@ -4,6 +4,8 @@ import { api, ApiError, startVisit, type Appointment, type ApptStatus, type Pati
 import { useClinic } from "../lib/clinic";
 import { useToast } from "./Toast";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { PhoneInput } from "./PatientForm";
+import { formatPhone } from "../../shared/phone";
 import { label12, slots, utcToIst } from "../../shared/time";
 
 const LENGTHS: [number, string][] = [[15, "15 min"], [20, "20 min"], [30, "30 min"], [45, "45 min"], [60, "1 hour"], [90, "1½ hours"]];
@@ -39,6 +41,7 @@ export function BookDialog({ day: day0, time: time0, patient: patient0, visitTyp
   const [found, setFound] = useState<Patient[]>([]);
   const [patient, setPatient] = useState<Patient | null>(patient0 ?? null);
   const [newPhone, setNewPhone] = useState("");
+  const [newCc, setNewCc] = useState("91");
   const [adding, setAdding] = useState(false);
   const [day, setDay] = useState(day0);
   const daySlots = slots(hours, day);
@@ -62,8 +65,8 @@ export function BookDialog({ day: day0, time: time0, patient: patient0, visitTyp
     try {
       let p = patient;
       if (!p && adding) {
-        const r = await api<{ id: string; code: string }>("/patients", { method: "POST", body: JSON.stringify({ name: q, phone: newPhone }) });
-        p = { id: r.id, code: r.code, name: q.trim() } as Patient;
+        const r = await api<{ id: string; code: string }>("/patients", { method: "POST", body: JSON.stringify({ name: q, phoneCc: newCc, phone: newPhone }) });
+        p = { id: r.id, code: r.code, name: q.trim(), phoneCc: newCc, phone: newPhone, alerts: [] } as unknown as Patient;
         setPatient(p); setAdding(false);
       }
       if (!p) { setErr("Choose a patient, or add them as new."); return; }
@@ -94,7 +97,7 @@ export function BookDialog({ day: day0, time: time0, patient: patient0, visitTyp
               <ul className="picklist">
                 {found.map((p) => (
                   <li key={p.id}><button type="button" onClick={() => setPatient(p)}>
-                    <b>{p.name}</b> <span className="muted">{p.code} · {p.phone}</span>
+                    <b>{p.name}</b> <span className="muted">{p.code} · {formatPhone(p.phoneCc, p.phone)}</span>
                   </button></li>
                 ))}
               </ul>
@@ -103,9 +106,7 @@ export function BookDialog({ day: day0, time: time0, patient: patient0, visitTyp
               <button type="button" className="link-btn" onClick={() => setAdding(true)}>+ Add “{q.trim()}” as a new patient</button>
             )}
             {adding && (
-              <label className="field">Mobile for {q.trim() || "new patient"}
-                <input className="input" inputMode="numeric" value={newPhone} onChange={(e) => setNewPhone(e.target.value)} placeholder="10 digits" />
-              </label>
+              <PhoneInput id="book-phone" label={`Mobile for ${q.trim() || "new patient"}`} cc={newCc} phone={newPhone} onChange={(c, p) => { setNewCc(c); setNewPhone(p); }} />
             )}
           </div>
         )}
@@ -198,7 +199,7 @@ export function ApptDialog({ appt, onClose, onChanged }: { appt: Appointment; on
         <div className="dialog-head">
           <div>
             <h2 id="appt-title">{appt.patient.name}</h2>
-            <span className="muted">{appt.patient.code} · +91 {appt.patient.phone.slice(0, 5)} {appt.patient.phone.slice(5)}</span>
+            <span className="muted">{appt.patient.code} · {formatPhone(appt.patient.phoneCc, appt.patient.phone)}</span>
             <div>{appt.patient.alerts.map((a) => <span key={a} className="tag alert">{a}</span>)}</div>
           </div>
           <button type="button" className="toast-close dark" aria-label="Close" onClick={onClose}>×</button>
