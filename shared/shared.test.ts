@@ -107,7 +107,7 @@ describe("WhatsApp messages", async () => {
   it("fills a template and tidies missing words", () => {
     expect(fill("Hello {name}, pay {upi}. – {doctor}", { name: "Anitha", doctor: "Dr S" })).toBe("Hello Anitha, pay. – Dr S");
     expect(fill(DEFAULT_TEMPLATES.reminder, { name: "A", day: "Thursday", time: "5:30 PM", visit: "scaling", clinic: "Oyster", doctor: "Dr S" }))
-      .toContain("scaling appointment at Oyster on Thursday at 5:30 PM");
+      .toContain("Your scaling appointment is on Thursday at 5:30 PM.");
   });
   it("makes wa.me links for Indian mobiles only", () => {
     expect(waLink("91", "98400 12345", "Hi there")).toBe("https://wa.me/919840012345?text=Hi%20there");
@@ -139,5 +139,18 @@ describe("tooth chart", async () => {
     expect(lookOf({ ...blank(46), condition: "Missing" })).toBe("missing");
     expect(toothName(36)).toBe("Lower left first molar");
     expect(toothName(75)).toBe("Lower left baby second molar");
+  });
+});
+
+describe("saved message wording", () => {
+  it("moves the first doctor-signed wording to the automated wording, keeps real edits", async () => {
+    const { readSettings } = await import("./settings");
+    const { DEFAULT_TEMPLATES } = await import("./messages");
+    const s = readSettings(JSON.stringify({ templates: {
+      reminder: "Hello {name}, this is a reminder of your {visit} appointment at {clinic} on {day} at {time}. Please reply here if you need to change the time. – {doctor}",
+      recall: "My own recall text {name}",
+    } }));
+    expect(s.templates.reminder).toBe(DEFAULT_TEMPLATES.reminder);
+    expect(s.templates.recall).toBe("My own recall text {name}");
   });
 });

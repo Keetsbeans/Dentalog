@@ -34,7 +34,7 @@ export async function today(c: C) {
   try { hours = JSON.parse(clinic?.hoursJson ?? "{}") as Hours; } catch { /* closed */ }
 
   const pName = { id: s.patients.id, name: s.patients.name };
-  const [receipts, apptsToday, invToday, teeth, invoices, paid, labs, upcoming, drafts, lastVisits, weekAppts, sentReminders] = await Promise.all([
+  const [receipts, apptsToday, invToday, teeth, invoices, paid, labs, upcoming, drafts, lastVisits, weekAppts, sentReminders, asks] = await Promise.all([
     d.select({ amount: s.receipts.amountPaise, mode: s.receipts.mode, patientId: s.receipts.patientId }).from(s.receipts)
       .where(and(eq(s.receipts.clinicId, CLINIC_ID), isNull(s.receipts.deletedAt), gte(s.receipts.receivedAt, start), lt(s.receipts.receivedAt, end))),
     d.select({ a: s.appointments, p: pName }).from(s.appointments).innerJoin(s.patients, eq(s.patients.id, s.appointments.patientId))
@@ -57,7 +57,9 @@ export async function today(c: C) {
       .where(and(eq(s.visits.clinicId, CLINIC_ID), isNull(s.visits.deletedAt), isNotNull(s.visits.signedAt))).orderBy(desc(s.visits.signedAt)),
     d.select({ startsAt: s.appointments.startsAt, minutes: s.appointments.minutes, status: s.appointments.status, id: s.appointments.id }).from(s.appointments)
       .where(and(eq(s.appointments.clinicId, CLINIC_ID), isNull(s.appointments.deletedAt), gte(s.appointments.startsAt, start), lt(s.appointments.startsAt, istToUtc(addDays(day, 7), "00:00")))),
-    d.select({ refId: s.messages.refId }).from(s.messages).where(and(eq(s.messages.clinicId, CLINIC_ID), eq(s.messages.kind, "reminder"))),
+    d.select({ kind: s.messages.kind, refId: s.messages.refId }).from(s.messages).where(and(eq(s.messages.clinicId, CLINIC_ID), inArray(s.messages.kind, ["reminder", "soon"]))),
+    d.select({ a: s.appointments, p: pName }).from(s.appointments).innerJoin(s.patients, eq(s.patients.id, s.appointments.patientId))
+      .where(and(eq(s.appointments.clinicId, CLINIC_ID), isNull(s.appointments.deletedAt), isNull(s.patients.deletedAt), eq(s.appointments.status, "booked"), isNotNull(s.appointments.rescheduleAt), gte(s.appointments.startsAt, nowIso))),
   ]);
 
   // Collected today
@@ -107,7 +109,13 @@ export async function today(c: C) {
   if (drafts.length) attention.push({ key: "drafts", tone: "amber", title: `${drafts.length} visit ${drafts.length === 1 ? "note" : "notes"} from earlier days not signed`, detail: names(drafts.map(({ p }) => p.name)), href: `/visits/${drafts[0]!.id}` });
   const tomorrow = addDays(day, 1);
   const tStart = istToUtc(tomorrow, "00:00"), tEnd = istToUtc(addDays(tomorrow, 1), "00:00");
-  const sent = new Set(sentReminders.map((m) => m.refId));
+  const sent = new Set(sentReminders.filter((m) => m.kind === "reminder").map((m) => m.refId));
+  const sentSoon = new Set(sentReminders.filter((m) => m.kind === "soon").map((m) => m.refId));
+  const nowMs = Date.now();
+  const dueSoon = apptsToday.filter(({ a }) => a.status === "booked" && !sentSoon.has(a.id) && a.startsAt > nowIso && new Date(a.startsAt).getTime() - settings.soonMinutes * 60_000 <= nowMs);
+  if (dueSoon.length) attention.unshift({ key: "soon", tone: "red", title: `${dueSoon.length} same-day ${dueSoon.length === 1 ? "reminder is" : "reminders are"} due now`, detail: names(dueSoon.map(({ p }) => p.name)), href: "/messages" });
+  const wantMove = asks.filter(({ a }) => a.rescheduleAt && (!a.confirmedAt || a.rescheduleAt > a.confirmedAt));
+  if (wantMove.length) attention.unshift({ key: "reschedule", tone: "amber", title: `${wantMove.length} ${wantMove.length === 1 ? "patient wants" : "patients want"} another time`, detail: names(wantMove.map(({ p }) => p.name)) + " · asked from their reminder link", href: "/calendar" });
   const unsent = weekAppts.filter((a) => a.status === "booked" && a.startsAt >= tStart && a.startsAt < tEnd && !sent.has(a.id));
   if (unsent.length) attention.push({ key: "reminders", tone: "blue", title: `${unsent.length} WhatsApp ${unsent.length === 1 ? "reminder" : "reminders"} for tomorrow not sent yet`, detail: "Send them from Messages", href: "/messages" });
   const latest = new Map<string, string>();

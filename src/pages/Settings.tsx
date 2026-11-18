@@ -52,6 +52,8 @@ export function Settings() {
         labs: S.labs.map((l) => ({ ...l, name: l.name.trim() })).filter((l) => l.name),
         labWork: S.labWork.map((x) => x.trim()).filter(Boolean),
         templates: S.templates,
+        soonMinutes: S.soonMinutes,
+        reviewLink: S.reviewLink,
       };
       await api("/clinic", { method: "PUT", body: JSON.stringify({ ...draft!.details, hours: draft!.hours, settings: clean }) });
       await reload(); setDirty(false);

@@ -81,10 +81,15 @@ export const appointments = sqliteTable(
     /** Booked over a taken slot for an emergency. */
     squeezedIn: integer("squeezed_in", { mode: "boolean" }).notNull().default(false),
     notes: text("notes"),
+    /** Secret part of the patient's confirm link (/c/<token>). */
+    confirmToken: text("confirm_token"),
+    /** Set when the patient taps Confirm, or asks for another time, from their link. */
+    confirmedAt: text("confirmed_at"),
+    rescheduleAt: text("reschedule_at"),
     createdAt: createdAt(),
     ...softDelete,
   },
-  (t) => [index("appointments_day").on(t.clinicId, t.startsAt)],
+  (t) => [index("appointments_day").on(t.clinicId, t.startsAt), uniqueIndex("appointments_confirm_token").on(t.confirmToken)],
 );
 
 export const visits = sqliteTable(
@@ -258,7 +263,9 @@ export const messages = sqliteTable(
     id: id(),
     clinicId: clinicId(),
     patientId: text("patient_id").notNull().references(() => patients.id),
-    kind: text("kind", { enum: ["reminder", "recall", "balance", "lab_ready", "other"] }).notNull(),
+    kind: text("kind", { enum: ["reminder", "soon", "recall", "balance", "lab_ready", "care", "review", "other", "patient"] }).notNull(),
+    /** "out" = sent by the clinic, "in" = something the patient did from their link (confirmed, asked to reschedule). */
+    direction: text("direction", { enum: ["out", "in"] }).notNull().default("out"),
     /** The appointment, bill or lab order the message was about. */
     refId: text("ref_id"),
     body: text("body").notNull(),

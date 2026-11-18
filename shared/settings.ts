@@ -17,6 +17,10 @@ export type ClinicSettings = {
   labWork: string[];
   /** WhatsApp message wording, one per kind of message. */
   templates: Templates;
+  /** Same-day reminder: how many minutes before the appointment it is due. */
+  soonMinutes: number;
+  /** Google review link for the "Ask for a review" message. */
+  reviewLink: string;
 };
 
 export const DEFAULT_SETTINGS: ClinicSettings = {
@@ -31,7 +35,21 @@ export const DEFAULT_SETTINGS: ClinicSettings = {
   labs: [{ name: "Lab A", days: 7 }, { name: "Lab B", days: 10 }],
   labWork: ["PFM crown", "Zirconia crown", "Bridge", "Complete denture", "Partial denture", "Night guard", "Retainer"],
   templates: DEFAULT_TEMPLATES,
+  soonMinutes: 60,
+  reviewLink: "",
 };
+
+/** The first wording, signed by the doctor. Saved copies of it move to the new automated wording. */
+const FIRST_WORDING: Record<string, string> = {
+  reminder: "Hello {name}, this is a reminder of your {visit} appointment at {clinic} on {day} at {time}. Please reply here if you need to change the time. – {doctor}",
+  recall: "Hello {name}, your last visit to {clinic} was in {last}. A check-up and cleaning every 6 months keeps teeth and gums healthy. Reply here and we’ll book a time that suits you. – {doctor}",
+  balance: "Hello {name}, a balance of {amount} is pending for your treatment at {clinic}. You can pay at your next visit, or by UPI to {upi}. Thank you! – {doctor}",
+  lab_ready: "Hello {name}, your {work} is back from the lab and ready at {clinic}. Please reply here to book a time to have it fitted. – {doctor}",
+};
+function unchangedOld(t: unknown): Partial<Record<string, string>> {
+  if (!t || typeof t !== "object") return {};
+  return Object.fromEntries(Object.entries(t as Record<string, unknown>).filter((e): e is [string, string] => typeof e[1] === "string" && !!e[1].trim() && e[1] !== FIRST_WORDING[e[0]]));
+}
 
 /** Saved settings over the defaults, one key at a time. Bad or missing data falls back safely. */
 export function readSettings(json: string | null | undefined): ClinicSettings {
@@ -44,6 +62,8 @@ export function readSettings(json: string | null | undefined): ClinicSettings {
     visitTypes: Array.isArray(saved.visitTypes) && saved.visitTypes.length ? saved.visitTypes : DEFAULT_SETTINGS.visitTypes,
     labs: Array.isArray(saved.labs) ? saved.labs : DEFAULT_SETTINGS.labs,
     labWork: Array.isArray(saved.labWork) && saved.labWork.length ? saved.labWork : DEFAULT_SETTINGS.labWork,
-    templates: { ...DEFAULT_TEMPLATES, ...(saved.templates && typeof saved.templates === "object" ? saved.templates : {}) },
+    soonMinutes: [30, 60, 90, 120].includes(Number(saved.soonMinutes)) ? Number(saved.soonMinutes) : DEFAULT_SETTINGS.soonMinutes,
+    reviewLink: typeof saved.reviewLink === "string" ? saved.reviewLink : "",
+    templates: { ...DEFAULT_TEMPLATES, ...unchangedOld(saved.templates) },
   };
 }
