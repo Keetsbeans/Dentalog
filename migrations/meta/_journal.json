@@ -36,6 +36,13 @@
       "when": 1795002530010,
       "tag": "0005_tooth_chart",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1795004680427,
+      "tag": "0006_patient_contact_bill_edits",
+      "breakpoints": true
     }
   ]
 }

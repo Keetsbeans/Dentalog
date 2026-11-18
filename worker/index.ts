@@ -14,9 +14,11 @@ import { directions, quantity, type Food } from "../shared/rx";
 import { findDrug, penicillinAllergy } from "../shared/drugs";
 import { billTotal, PAY_MODES, type PayMode } from "../shared/services";
 import { amountInWords, rupees } from "../shared/money";
+import { checkPhone, EMAIL } from "../shared/phone";
 import { buildReport } from "./reports";
 import { logSent, queue, sentLog } from "./messages";
 import { getTeeth, putTooth } from "./teeth";
+import { today } from "./today";
 
 const app = new Hono<{ Bindings: Env }>().basePath("/api");
 const db = (env: Env) => drizzle(env.DB, { schema: s });
@@ -76,6 +78,7 @@ type LabStatus = "sent" | "received" | "fitted";
 const LAB_STATUSES: LabStatus[] = ["sent", "received", "fitted"];
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 
+app.get("/today", today);
 app.get("/messages/queue", queue);
 app.get("/messages", sentLog);
 app.post("/messages", logSent);
@@ -166,22 +169,67 @@ app.get("/patients", async (c) => {
   return c.json(rows.map((p) => ({ ...p, alerts: JSON.parse(p.alertsJson) as string[] })));
 });
 
+type PatientIn = {
+  name?: string; phoneCc?: string; phone?: string; email?: string | null; gender?: "F" | "M" | "O" | null; birthYear?: number | null;
+  alerts?: string[]; notes?: string | null; whatsappConsent?: boolean;
+};
+
+/** Checks the fields that were sent. Returns the cleaned values, or an error. */
+function patientFields(b: PatientIn, creating: boolean): Partial<typeof s.patients.$inferInsert> | string {
+  const out: Partial<typeof s.patients.$inferInsert> = {};
+  if (creating || b.name !== undefined) {
+    const name = b.name?.trim();
+    if (!name) return "Enter the patient’s name.";
+    out.name = name;
+  }
+  if (creating || b.phone !== undefined || b.phoneCc !== undefined) {
+    const cc = (b.phoneCc ?? "91").replace(/\D/g, "");
+    const phone = (b.phone ?? "").replace(/[\s-]/g, "");
+    const bad = checkPhone(cc, phone);
+    if (bad) return bad;
+    out.phoneCc = cc; out.phone = phone;
+  }
+  if (b.email !== undefined) {
+    const email = b.email?.trim().toLowerCase() || null;
+    if (email && !EMAIL.test(email)) return "That email doesn’t look right.";
+    out.email = email;
+  }
+  if (b.gender !== undefined) out.gender = b.gender && ["F", "M", "O"].includes(b.gender) ? b.gender : null;
+  if (b.birthYear !== undefined) {
+    const y = b.birthYear, now = new Date().getFullYear();
+    if (y !== null && (!Number.isInteger(y) || y < now - 110 || y > now)) return "Check the age.";
+    out.birthYear = y;
+  }
+  if (b.alerts !== undefined) out.alertsJson = JSON.stringify((b.alerts ?? []).map((a) => a.trim()).filter(Boolean));
+  if (b.notes !== undefined) out.notes = b.notes?.trim() || null;
+  if (b.whatsappConsent !== undefined) out.whatsappConsent = !!b.whatsappConsent;
+  return out;
+}
+
 app.post("/patients", async (c) => {
-  const body = await c.req.json<{ name?: string; phone?: string; gender?: "F" | "M" | "O"; birthYear?: number; alerts?: string[] }>();
-  const name = body.name?.trim();
-  const phone = (body.phone ?? "").replace(/\D/g, "").slice(-10);
-  if (!name) return c.json({ error: "Enter the patient’s name." }, 400);
-  if (phone.length !== 10) return c.json({ error: "Mobile number needs 10 digits." }, 400);
+  const f = patientFields(await c.req.json<PatientIn>(), true);
+  if (typeof f === "string") return c.json({ error: f }, 400);
   const id = crypto.randomUUID();
   const code = await nextNumber(c.env, "patient");
   const fileNo = await nextNumber(c.env, "file");
-  await db(c.env).insert(s.patients).values({
-    id, clinicId: CLINIC_ID, code, fileNo, name, phone,
-    gender: body.gender ?? null, birthYear: body.birthYear ?? null,
-    alertsJson: JSON.stringify(body.alerts ?? []),
-  });
+  await db(c.env).insert(s.patients).values({ ...f, id, clinicId: CLINIC_ID, code, fileNo, name: f.name!, phone: f.phone! });
   await audit(db(c.env), CLINIC_ID, "create", "patient", id);
   return c.json({ id, code, fileNo }, 201);
+});
+
+/** Edit a patient's details. Changing the email clears its confirmation. */
+app.put("/patients/:id", async (c) => {
+  const id = c.req.param("id");
+  const d = db(c.env);
+  const [p] = await d.select().from(s.patients).where(and(eq(s.patients.id, id), eq(s.patients.clinicId, CLINIC_ID), isNull(s.patients.deletedAt)));
+  if (!p) return c.json({ error: "That patient was not found." }, 404);
+  const f = patientFields(await c.req.json<PatientIn>(), false);
+  if (typeof f === "string") return c.json({ error: f }, 400);
+  if (f.email !== undefined && f.email !== p.email) f.emailConfirmedAt = null;
+  if (!Object.keys(f).length) return c.json({ error: "Nothing to save." }, 400);
+  await d.update(s.patients).set(f).where(eq(s.patients.id, id));
+  await audit(d, CLINIC_ID, "update", "patient", id, Object.keys(f));
+  return c.json({ saved: true });
 });
 
 // ---------- Patient record ----------
@@ -231,8 +279,24 @@ async function loadVisit(env: Env, id: string) {
   const [p] = await d.select().from(s.patients).where(eq(s.patients.id, v.patientId));
   const items = await d.select().from(s.prescriptionItems)
     .where(eq(s.prescriptionItems.visitId, id)).orderBy(asc(s.prescriptionItems.sortOrder));
-  return { visit: visitOut(v), patient: parsePatient(p!), items };
+  const addenda = await d.select({ id: s.visitAddenda.id, text: s.visitAddenda.text, createdAt: s.visitAddenda.createdAt })
+    .from(s.visitAddenda).where(eq(s.visitAddenda.visitId, id)).orderBy(asc(s.visitAddenda.createdAt));
+  return { visit: visitOut(v), patient: parsePatient(p!), items, addenda };
 }
+
+/** A dated addition to a signed note. The signed note itself never changes. */
+app.post("/visits/:id/addenda", async (c) => {
+  const id = c.req.param("id");
+  const text = (await c.req.json<{ text?: string }>()).text?.trim();
+  if (!text) return c.json({ error: "Write the addendum first." }, 400);
+  const [v] = await db(c.env).select().from(s.visits).where(and(eq(s.visits.id, id), eq(s.visits.clinicId, CLINIC_ID), isNull(s.visits.deletedAt)));
+  if (!v) return c.json({ error: "That visit was not found." }, 404);
+  if (!v.signedAt) return c.json({ error: "The note isn’t signed yet, so just edit it." }, 400);
+  const row = { id: crypto.randomUUID(), clinicId: CLINIC_ID, visitId: id, text: text.slice(0, 4000), createdAt: new Date().toISOString() };
+  await db(c.env).insert(s.visitAddenda).values(row);
+  await audit(db(c.env), CLINIC_ID, "create", "addendum", row.id, { visitId: id });
+  return c.json({ id: row.id, text: row.text, createdAt: row.createdAt }, 201);
+});
 
 /** Starts a visit note for a patient, or reopens today's unsigned one for the same appointment. */
 app.post("/visits", async (c) => {
@@ -352,7 +416,9 @@ app.get("/invoices/:id", async (c) => {
   const lines = await d.select().from(s.invoiceLines).where(eq(s.invoiceLines.invoiceId, id));
   const receipts = await d.select().from(s.receipts)
     .where(and(eq(s.receipts.invoiceId, id), isNull(s.receipts.deletedAt))).orderBy(asc(s.receipts.receivedAt));
-  return c.json({ ...sum, lines, receipts });
+  const edits = (await d.select().from(s.invoiceEdits).where(eq(s.invoiceEdits.invoiceId, id)).orderBy(desc(s.invoiceEdits.createdAt)))
+    .map((e) => ({ id: e.id, reason: e.reason, createdAt: e.createdAt, before: JSON.parse(e.beforeJson) as unknown, after: JSON.parse(e.afterJson) as unknown }));
+  return c.json({ ...sum, lines, receipts, edits });
 });
 
 /** New bill, optionally with the payment taken at the counter. */
@@ -389,6 +455,36 @@ app.post("/invoices", async (c) => {
   await d.batch(ops as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]]);
   await audit(d, CLINIC_ID, "create", "invoice", id, { number, totalPaise, receipt: receipt?.number });
   return c.json({ id, number, receipt }, 201);
+});
+
+/** Edit a bill: change its lines or discount. The old version is kept with the reason, so nothing is lost. */
+app.put("/invoices/:id", async (c) => {
+  const id = c.req.param("id");
+  const b = await c.req.json<{ lines?: LineIn[]; discountPaise?: number; reason?: string }>();
+  const d = db(c.env);
+  const [sum] = await invoiceSummaries(c.env, eq(s.invoices.id, id));
+  if (!sum) return c.json({ error: "That bill was not found." }, 404);
+  const reason = b.reason?.trim();
+  if (!reason) return c.json({ error: "Say why the bill is being changed. It is kept with the bill." }, 400);
+  const lines = (b.lines ?? []).filter((l) => l.service?.trim());
+  if (!lines.length) return c.json({ error: "A bill needs at least one service." }, 400);
+  if (lines.some((l) => !Number.isInteger(l.amountPaise) || l.amountPaise < 0)) return c.json({ error: "Check the amounts." }, 400);
+  const discountPaise = Math.max(0, Math.round(b.discountPaise ?? 0));
+  const totalPaise = billTotal(lines, discountPaise);
+  if (totalPaise < sum.paidPaise) return c.json({ error: `The new total can’t be less than the ${rupees(sum.paidPaise)} already paid. Delete a receipt first if money was returned.` }, 400);
+  const oldLines = await d.select().from(s.invoiceLines).where(eq(s.invoiceLines.invoiceId, id));
+  const clean = lines.map((l) => ({ service: l.service.trim(), tooth: l.tooth?.trim() || null, amountPaise: l.amountPaise }));
+  const before = { lines: oldLines.map((l) => ({ service: l.service, tooth: l.tooth, amountPaise: l.amountPaise })), discountPaise: sum.discountPaise, totalPaise: sum.totalPaise };
+  const after = { lines: clean, discountPaise, totalPaise };
+  if (JSON.stringify(before) === JSON.stringify(after)) return c.json({ error: "Nothing was changed." }, 400);
+  await d.batch([
+    d.delete(s.invoiceLines).where(eq(s.invoiceLines.invoiceId, id)),
+    d.insert(s.invoiceLines).values(clean.map((l) => ({ id: crypto.randomUUID(), invoiceId: id, ...l }))),
+    d.update(s.invoices).set({ discountPaise, totalPaise }).where(eq(s.invoices.id, id)),
+    d.insert(s.invoiceEdits).values({ id: crypto.randomUUID(), clinicId: CLINIC_ID, invoiceId: id, reason, beforeJson: JSON.stringify(before), afterJson: JSON.stringify(after) }),
+  ]);
+  await audit(d, CLINIC_ID, "update", "invoice", id, { reason, from: sum.totalPaise, to: totalPaise });
+  return c.json({ saved: true, totalPaise });
 });
 
 /** A later payment against a bill (balance, EMI instalment, insurance settlement). */
@@ -435,7 +531,7 @@ const HOLDS = (st: Status) => st !== "cancelled" && st !== "no_show";
 
 async function apptRows(env: Env, from: string, to: string) {
   const rows = await db(env)
-    .select({ a: s.appointments, p: { id: s.patients.id, name: s.patients.name, code: s.patients.code, phone: s.patients.phone, alertsJson: s.patients.alertsJson } })
+    .select({ a: s.appointments, p: { id: s.patients.id, name: s.patients.name, code: s.patients.code, phone: s.patients.phone, phoneCc: s.patients.phoneCc, alertsJson: s.patients.alertsJson } })
     .from(s.appointments)
     .innerJoin(s.patients, eq(s.patients.id, s.appointments.patientId))
     .where(and(
@@ -445,7 +541,7 @@ async function apptRows(env: Env, from: string, to: string) {
     .orderBy(asc(s.appointments.startsAt));
   return rows.map(({ a, p }) => ({
     ...a,
-    patient: { id: p.id, name: p.name, code: p.code, phone: p.phone, alerts: JSON.parse(p.alertsJson) as string[] },
+    patient: { id: p.id, name: p.name, code: p.code, phone: p.phone, phoneCc: p.phoneCc, alerts: JSON.parse(p.alertsJson) as string[] },
   }));
 }
 

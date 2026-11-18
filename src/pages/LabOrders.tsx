@@ -8,6 +8,7 @@ import { toPaise } from "../components/Billing";
 import { dayLabel } from "../components/Appointments";
 import { rupees } from "../../shared/money";
 import { addDays, todayIst } from "../../shared/time";
+import { formatPhone } from "../../shared/phone";
 
 type Filter = "open" | "late" | "unpaid" | "all";
 const STATUS: Record<LabOrder["status"], string> = { sent: "At the lab", received: "Back, to fit", fitted: "Fitted" };
@@ -167,7 +168,7 @@ function NewLabOrder({ onClose, onSaved }: { onClose: () => void; onSaved: (msg:
           <div className="field">
             <label htmlFor="lab-q">Patient</label>
             <input id="lab-q" className="input" autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Name, patient ID or mobile" autoComplete="off" />
-            {found.length > 0 && <ul className="picklist">{found.map((p) => <li key={p.id}><button type="button" onClick={() => setPatient(p)}><b>{p.name}</b> <span className="muted">{p.code} · {p.phone}</span></button></li>)}</ul>}
+            {found.length > 0 && <ul className="picklist">{found.map((p) => <li key={p.id}><button type="button" onClick={() => setPatient(p)}><b>{p.name}</b> <span className="muted">{p.code} · {formatPhone(p.phoneCc, p.phone)}</span></button></li>)}</ul>}
           </div>
         )}
         <fieldset className="field"><legend>Lab</legend>

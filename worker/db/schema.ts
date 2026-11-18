@@ -46,6 +46,11 @@ export const patients = sqliteTable(
     fileNo: text("file_no"),
     name: text("name").notNull(),
     phone: text("phone").notNull(),
+    /** Country code without the +, e.g. "91". */
+    phoneCc: text("phone_cc").notNull().default("91"),
+    email: text("email"),
+    /** Set when the patient confirmed the email from their link. */
+    emailConfirmedAt: text("email_confirmed_at"),
     gender: text("gender", { enum: ["F", "M", "O"] }),
     birthYear: integer("birth_year"),
     /** Medical alerts shown in red on every screen, e.g. ["Diabetic","Penicillin allergy"] */
@@ -185,6 +190,35 @@ export const labOrders = sqliteTable("lab_orders", {
   createdAt: createdAt(),
   ...softDelete,
 });
+
+/** A change made to a bill after it was issued: what it was before, and why. */
+export const invoiceEdits = sqliteTable(
+  "invoice_edits",
+  {
+    id: id(),
+    clinicId: clinicId(),
+    invoiceId: text("invoice_id").notNull().references(() => invoices.id),
+    reason: text("reason").notNull(),
+    /** The bill before the change: { lines, discountPaise, totalPaise }. */
+    beforeJson: text("before_json").notNull(),
+    afterJson: text("after_json").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("invoice_edits_invoice").on(t.invoiceId)],
+);
+
+/** Dated additions to a signed visit note. The note itself stays as signed. */
+export const visitAddenda = sqliteTable(
+  "visit_addenda",
+  {
+    id: id(),
+    clinicId: clinicId(),
+    visitId: text("visit_id").notNull().references(() => visits.id),
+    text: text("text").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("visit_addenda_visit").on(t.visitId)],
+);
 
 /** The tooth chart: one row per tooth that is not plain healthy (FDI number). */
 export const teeth = sqliteTable(

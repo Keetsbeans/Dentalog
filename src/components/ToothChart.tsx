@@ -63,6 +63,8 @@ export function ToothChart({ patient }: { patient: Patient }) {
   const [teeth, setTeeth] = useState<Map<number, ToothState>>(new Map());
   const [events, setEvents] = useState<Event[]>([]);
   const [sel, setSel] = useState<number>(age !== null && age < 12 ? 75 : 16);
+  /** With "Select several" on, the teeth picked so far. Changes then apply to all of them. */
+  const [many, setMany] = useState<number[] | null>(null);
   const [err, setErr] = useState("");
   const [booking, setBooking] = useState<PlanName | null>(null);
   const [billing, setBilling] = useState<ToothState | null>(null);
@@ -84,6 +86,32 @@ export function ToothChart({ patient }: { patient: Patient }) {
     } catch (e) { setErr((e as Error).message); }
   }
 
+  /** Applies the same change to several teeth, with one undo for all of them. */
+  async function changeAll(ns: number[], body: Record<string, unknown>, say: string) {
+    if (ns.length === 1) return change(ns[0]!, body, say);
+    setErr("");
+    const befores: ToothState[] = [];
+    try {
+      for (const n of ns) {
+        const r = await api<{ before: ToothState }>(`/patients/${patient.id}/teeth/${n}`, { method: "PUT", body: JSON.stringify(body) });
+        befores.push(r.before);
+      }
+    } catch (e) { setErr((e as Error).message); }
+    await load();
+    if (befores.length) toast({ title: say, onUndo: async () => {
+      for (const b of befores) await api(`/patients/${patient.id}/teeth/${b.tooth}`, { method: "PUT", body: JSON.stringify({ restore: b }) });
+      await load();
+    } });
+  }
+  const picked = many ?? [sel];
+  const pickTooth = (n: number) => {
+    if (!many) return setSel(n);
+    setMany(many.includes(n) ? many.filter((x) => x !== n) : [...many, n].sort((a, b) => a - b));
+    setSel(n);
+  };
+  const allHave = (f: (t: ToothState) => boolean) => picked.length > 0 && picked.every((n) => f(get(n)));
+  const who = picked.length === 1 ? `Tooth ${picked[0]}` : `${picked.length} teeth (${picked.join(", ")})`;
+
   const s = get(sel);
   const planned = [...teeth.values()].filter((t) => t.plan).sort((a, b) => a.tooth - b.tooth);
   let total = 0, doneValue = 0;
@@ -97,9 +125,13 @@ export function ToothChart({ patient }: { patient: Patient }) {
         <div className="card">
           <div className="card-head">
             <div><h2>Tooth chart</h2><span className="muted">Tap a tooth to see and change it</span></div>
-            <DentitionSwitch dent={dent} onChange={(d) => { setDent(d); setSel(d === "adult" ? 16 : 75); }} />
+            <div className="row-actions">
+              <label className="check small"><input type="checkbox" checked={!!many} onChange={(e) => setMany(e.target.checked ? [] : null)} /> Select several</label>
+              <DentitionSwitch dent={dent} onChange={(d) => { setDent(d); setSel(d === "adult" ? 16 : 75); if (many) setMany([]); }} />
+            </div>
           </div>
-          <ToothGrid dent={dent} state={get} selected={[sel]} onPick={setSel} />
+          {many && <p className="multi-hint">Tap each tooth to add or remove it, then choose a condition or plan on the right. {many.length > 0 && <button type="button" className="link-btn" onClick={() => setMany([])}>Clear selection</button>}</p>}
+          <ToothGrid dent={dent} state={get} selected={picked} onPick={pickTooth} />
           <div className="tooth-legend">
             <span><i className="look-problem" />Problem</span><span><i className="look-planned" />Planned</span>
             <span><i className="look-done" />Done</span><span><i className="look-missing" />Missing</span>
@@ -143,27 +175,29 @@ export function ToothChart({ patient }: { patient: Patient }) {
 
       <aside className="chart-side">
         <div className="card tooth-panel">
-          <div className="card-head"><h2>Tooth {sel}</h2><span className="muted">{toothName(sel)}</span></div>
+          {picked.length === 1
+            ? <div className="card-head"><h2>Tooth {picked[0]}</h2><span className="muted">{toothName(picked[0]!)}</span></div>
+            : <div className="card-head"><h2>{picked.length ? `${picked.length} teeth selected` : "No teeth selected"}</h2><span className="muted nums">{picked.join(", ")}</span></div>}
           {err && <p className="error" role="alert">{err}</p>}
           <fieldset className="field"><legend>Condition</legend>
             <div className="chips">
               {CONDITIONS.map((c) => (
-                <button key={c} type="button" aria-pressed={s.condition === c} className={"chip dark" + (s.condition === c ? " on" : "")}
-                  onClick={() => change(sel, { condition: c }, `Tooth ${sel}: ${c.toLowerCase()}`)}>{c}</button>
+                <button key={c} type="button" disabled={!picked.length} aria-pressed={allHave((t) => t.condition === c)} className={"chip dark" + (allHave((t) => t.condition === c) ? " on" : "")}
+                  onClick={() => changeAll(picked, { condition: c }, `${who}: ${c.toLowerCase()}`)}>{c}</button>
               ))}
             </div>
           </fieldset>
           <fieldset className="field"><legend>Plan</legend>
             <div className="chips">
-              <button type="button" aria-pressed={!s.plan} className={"chip blue" + (!s.plan ? " on" : "")} onClick={() => change(sel, { plan: null }, `Tooth ${sel}: plan removed`)}>None</button>
+              <button type="button" disabled={!picked.length} aria-pressed={allHave((t) => !t.plan)} className={"chip blue" + (allHave((t) => !t.plan) ? " on" : "")} onClick={() => changeAll(picked, { plan: null }, `${who}: plan removed`)}>None</button>
               {PLAN_NAMES.map((p) => (
-                <button key={p} type="button" aria-pressed={s.plan === p} className={"chip blue" + (s.plan === p ? " on" : "")}
-                  onClick={() => change(sel, { plan: p }, `Tooth ${sel}: ${PLANS[p].label} planned`)}>{p}</button>
+                <button key={p} type="button" disabled={!picked.length} aria-pressed={allHave((t) => t.plan === p)} className={"chip blue" + (allHave((t) => t.plan === p) ? " on" : "")}
+                  onClick={() => changeAll(picked, { plan: p }, `${who}: ${PLANS[p].label} planned`)}>{p}</button>
               ))}
             </div>
           </fieldset>
 
-          {s.plan && (
+          {picked.length === 1 && s.plan && (
             <div className="sittings">
               <div className="sittings-head">
                 <b>{PLANS[s.plan].label}{priceOf(s.plan) !== null ? ` · ${rupees(priceOf(s.plan)!)}` : ""}</b>

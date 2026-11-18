@@ -6,6 +6,7 @@ import { dayLabel } from "../components/Appointments";
 import { MODE_LABEL } from "../components/Billing";
 import { rupees } from "../../shared/money";
 import { label12, utcToIst } from "../../shared/time";
+import { formatPhone } from "../../shared/phone";
 
 type Data = { receipt: Receipt; patient: Patient; invoice: Invoice | null; inWords: string };
 
@@ -42,7 +43,7 @@ export function PrintReceipt() {
           <div className="a4-box">
             <span>Received from</span><b>{p.name}</b>
             <span>Patient ID</span><span>{p.code}{p.fileNo ? ` · File ${p.fileNo}` : ""}</span>
-            <span>Mobile</span><span>+91 {p.phone.slice(0, 5)} {p.phone.slice(5)}</span>
+            <span>Mobile</span><span>{formatPhone(p.phoneCc, p.phone)}</span>
           </div>
           {inv && (
             <table className="a4-rx">

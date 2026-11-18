@@ -8,6 +8,8 @@ import { dayLabel, STATUS_LABEL } from "../components/Appointments";
 import { label12, utcToIst } from "../../shared/time";
 import type { ApptStatus } from "../lib/api";
 import { ToothChart } from "../components/ToothChart";
+import { PatientForm } from "../components/PatientForm";
+import { formatPhone } from "../../shared/phone";
 
 type Record_ = {
   patient: Patient & { notes: string | null };
@@ -25,7 +27,9 @@ export function PatientRecord() {
   const [openBill, setOpenBill] = useState<string | null>(null);
   const toast = useToast();
   const loadBills = () => api<InvoiceSummary[]>(`/invoices?patientId=${id}`).then(setBills).catch(() => setBills([]));
-  useEffect(() => { api<Record_>(`/patients/${id}`).then(setR).catch((e) => setError((e as Error).message)); loadBills(); }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const load = () => api<Record_>(`/patients/${id}`).then(setR).catch((e) => setError((e as Error).message));
+  const [editing, setEditing] = useState(false);
+  useEffect(() => { load(); loadBills(); }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (error) return <p className="error" role="alert">{error}</p>;
   if (!r) return <p className="empty">Loading…</p>;
@@ -44,9 +48,10 @@ export function PatientRecord() {
         <div>
           <p className="eyebrow"><Link to="/patients">Patients</Link> · {p.code}{p.fileNo ? ` · File ${p.fileNo}` : ""}</p>
           <h1>{p.name}</h1>
-          <span className="muted">{[p.gender === "F" ? "Female" : p.gender === "M" ? "Male" : p.gender ? "Other" : null, age ? `${age} yrs` : null, `+91 ${p.phone.slice(0, 5)} ${p.phone.slice(5)}`].filter(Boolean).join(" · ")}</span>
+          <span className="muted">{[p.gender === "F" ? "Female" : p.gender === "M" ? "Male" : p.gender ? "Other" : null, age ? `${age} yrs` : null, formatPhone(p.phoneCc, p.phone), p.email].filter(Boolean).join(" · ")}</span>
         </div>
         <div className="head-actions">
+          <button type="button" className="btn" onClick={() => setEditing(true)}>Edit details</button>
           <button type="button" className="btn" onClick={() => setBilling(true)}>New bill</button>
           <button type="button" className="btn primary" onClick={newVisit}>Start visit note</button>
         </div>
@@ -101,6 +106,7 @@ export function PatientRecord() {
         </section>
       </div>
       {billing && <NewBill patient={p} onClose={() => setBilling(false)} onSaved={(msg, receiptId) => { setBilling(false); loadBills(); toast({ title: msg }); if (receiptId) printReceipt(receiptId); }} />}
+      {editing && <PatientForm patient={p} onClose={() => setEditing(false)} onSaved={(msg) => { setEditing(false); toast({ title: msg }); load(); }} />}
       {openBill && <BillDialog id={openBill} onClose={() => setOpenBill(null)} onChanged={loadBills} />}
     </>
   );

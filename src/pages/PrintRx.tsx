@@ -4,6 +4,7 @@ import { api, type VisitBundle } from "../lib/api";
 import { useClinic } from "../lib/clinic";
 import { dayLabel } from "../components/Appointments";
 import { label12, utcToIst } from "../../shared/time";
+import { formatPhone } from "../../shared/phone";
 
 /** A4 prescription on the clinic letterhead. Opens in its own tab; Print or Save as PDF from there. */
 export function PrintRx() {
@@ -38,7 +39,7 @@ export function PrintRx() {
           <div className="a4-patient">
             <span><b className="big">{p.name}</b>{p.gender ? ` · ${p.gender}` : ""}{age ? `, ${age}` : ""}</span>
             <span className="right">{dayLabel(t.day, { day: "numeric", month: "short", year: "numeric" })}, {label12(t.time)}</span>
-            <span>{p.code}{p.fileNo ? ` · File ${p.fileNo}` : ""} · +91 {p.phone.slice(0, 5)} {p.phone.slice(5)}</span>
+            <span>{p.code}{p.fileNo ? ` · File ${p.fileNo}` : ""} · {formatPhone(p.phoneCc, p.phone)}</span>
           </div>
           {p.alerts.length > 0 && <div className="a4-alerts">MEDICAL ALERTS: {p.alerts.join(" · ")}</div>}
           {dx && <div className="a4-sec"><span className="a4-label">DIAGNOSIS</span><span>{dx}</span></div>}

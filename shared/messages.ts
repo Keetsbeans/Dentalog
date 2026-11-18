@@ -34,9 +34,9 @@ export function fill(template: string, vars: Record<string, string | undefined |
     .trim();
 }
 
-/** A WhatsApp click-to-chat link for an Indian 10-digit mobile number. */
-export function waLink(phone: string, text: string): string | null {
-  const digits = phone.replace(/\D/g, "").replace(/^(91|0)(?=\d{10}$)/, "");
-  if (!/^[6-9]\d{9}$/.test(digits)) return null;
-  return `https://wa.me/91${digits}?text=${encodeURIComponent(text)}`;
+/** A WhatsApp click-to-chat link. `cc` is the country code without the +. */
+export function waLink(cc: string, phone: string, text: string): string | null {
+  const digits = phone.replace(/\D/g, "").replace(/^0+/, "");
+  if (cc === "91" ? !/^[6-9]\d{9}$/.test(digits) : digits.length < 7 || digits.length > 10) return null;
+  return `https://wa.me/${cc}${digits}?text=${encodeURIComponent(text)}`;
 }

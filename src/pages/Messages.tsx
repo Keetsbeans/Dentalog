@@ -7,7 +7,7 @@ import { dayLabel } from "../components/Appointments";
 import { addDays, label12, todayIst, utcToIst } from "../../shared/time";
 import { DEFAULT_TEMPLATES, fill, KIND_LABEL, PLACEHOLDERS, waLink, type MessageKind, type Templates } from "../../shared/messages";
 
-type QueuePatient = { id: string; name: string; code: string; phone: string; consent: boolean };
+type QueuePatient = { id: string; name: string; code: string; phone: string; phoneCc: string; consent: boolean };
 type QueueItem = { kind: MessageKind; refId: string; patient: QueuePatient; vars: Record<string, string>; detail: string; sentAt: string | null };
 type Sent = { id: string; kind: MessageKind | "other"; body: string; createdAt: string; patient: { id: string; name: string; code: string } };
 
@@ -45,7 +45,7 @@ function QueueRow({ item, template, onSent }: { item: QueueItem; template: strin
   const [text, setText] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const body = text ?? auto;
-  const link = waLink(item.patient.phone, body);
+  const link = waLink(item.patient.phoneCc, item.patient.phone, body);
 
   async function record() {
     try {

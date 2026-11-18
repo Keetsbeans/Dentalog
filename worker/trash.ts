@@ -85,11 +85,11 @@ export async function purgeOne(db: Db, env: { FILES?: R2Bucket }, clinicId: stri
     const files = await db.select().from(s.files).where(eq(s.files.patientId, id));
     for (const f of files) await env.FILES?.delete(f.r2Key);
     const visitIds = (await db.select({ id: s.visits.id }).from(s.visits).where(eq(s.visits.patientId, id))).map((v) => v.id);
-    for (const v of visitIds) await db.delete(s.prescriptionItems).where(eq(s.prescriptionItems.visitId, v));
+    for (const v of visitIds) { await db.delete(s.prescriptionItems).where(eq(s.prescriptionItems.visitId, v)); await db.delete(s.visitAddenda).where(eq(s.visitAddenda.visitId, v)); }
     await db.delete(s.files).where(eq(s.files.patientId, id));
     await db.delete(s.receipts).where(eq(s.receipts.patientId, id));
     const invoiceIds = (await db.select({ id: s.invoices.id }).from(s.invoices).where(eq(s.invoices.patientId, id))).map((v) => v.id);
-    for (const i of invoiceIds) await db.delete(s.invoiceLines).where(eq(s.invoiceLines.invoiceId, i));
+    for (const i of invoiceIds) { await db.delete(s.invoiceLines).where(eq(s.invoiceLines.invoiceId, i)); await db.delete(s.invoiceEdits).where(eq(s.invoiceEdits.invoiceId, i)); }
     await db.delete(s.invoices).where(eq(s.invoices.patientId, id));
     await db.delete(s.messages).where(eq(s.messages.patientId, id));
     await db.delete(s.teeth).where(eq(s.teeth.patientId, id));
@@ -98,13 +98,14 @@ export async function purgeOne(db: Db, env: { FILES?: R2Bucket }, clinicId: stri
     await db.delete(s.visits).where(eq(s.visits.patientId, id));
     await db.delete(s.appointments).where(eq(s.appointments.patientId, id));
   }
-  if (kind === "visit") await db.delete(s.prescriptionItems).where(eq(s.prescriptionItems.visitId, id));
+  if (kind === "visit") { await db.delete(s.prescriptionItems).where(eq(s.prescriptionItems.visitId, id)); await db.delete(s.visitAddenda).where(eq(s.visitAddenda.visitId, id)); }
   if (kind === "invoice") {
     for (const r of await db.select().from(s.receipts).where(eq(s.receipts.invoiceId, id))) {
       await db.delete(s.receipts).where(eq(s.receipts.id, r.id));
       await audit(db, clinicId, "purge", "receipt", r.id, r);
     }
     await db.delete(s.invoiceLines).where(eq(s.invoiceLines.invoiceId, id));
+    await db.delete(s.invoiceEdits).where(eq(s.invoiceEdits.invoiceId, id));
   }
   if (kind === "file") await env.FILES?.delete((row as typeof s.files.$inferSelect).r2Key);
 
