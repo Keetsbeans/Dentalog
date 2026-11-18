@@ -8,6 +8,7 @@ import { directions } from "../../shared/rx";
 import { label12, utcToIst } from "../../shared/time";
 import { dayLabel } from "../components/Appointments";
 import { NewBill, printReceipt } from "../components/Billing";
+import { ToothPicker } from "../components/ToothChart";
 
 const FINDINGS = ["Deep caries", "Tender on percussion", "Periapical widening on IOPA", "Mobility grade I", "Swelling", "Fractured cusp", "Calculus", "Bleeding gums"];
 const DIAGNOSES = ["Irreversible pulpitis", "Reversible pulpitis", "Dental caries", "Periapical abscess", "Gingivitis", "Chronic periodontitis", "Cracked tooth", "Impacted tooth"];
@@ -126,7 +127,7 @@ export function Visit() {
           </div>
           {Number(draft.vitals.sugar) > 250 && <p className="warn">Sugar is above 250. Consider postponing surgical work.</p>}
           <label className="field">Complaint<textarea className="input area" disabled={locked} value={draft.complaint ?? ""} onChange={(e) => edit({ complaint: e.target.value })} placeholder="e.g. Pain upper right back tooth for 3 days" /></label>
-          <label className="field">Tooth<input className="input" disabled={locked} value={draft.tooth ?? ""} onChange={(e) => edit({ tooth: e.target.value })} placeholder="e.g. 16, or 36 37" /></label>
+          <ToothPicker patientId={patient.id} disabled={locked} value={draft.tooth ?? ""} onChange={(v) => edit({ tooth: v })} />
           <fieldset className="field"><legend>Findings</legend>
             <div className="chips">{FINDINGS.map((f) => <button key={f} type="button" disabled={locked} aria-pressed={draft.findings.includes(f)} className={chip(draft.findings.includes(f), "dark")} onClick={() => toggle("findings", f)}>{f}</button>)}</div>
           </fieldset>

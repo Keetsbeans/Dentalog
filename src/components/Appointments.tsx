@@ -31,21 +31,21 @@ export async function setStatus(a: Appointment, status: ApptStatus) {
 }
 
 /** New appointment: pick (or add) a patient, the day, time, length and visit type. */
-export function BookDialog({ day: day0, time: time0, onClose, onSaved }: {
-  day: string; time?: string; onClose: () => void; onSaved: (msg: string) => void;
+export function BookDialog({ day: day0, time: time0, patient: patient0, visitType: visit0, note: note0, onClose, onSaved }: {
+  day: string; time?: string; patient?: Patient; visitType?: string; note?: string; onClose: () => void; onSaved: (msg: string) => void;
 }) {
   const { hours, settings } = useClinic();
   const [q, setQ] = useState("");
   const [found, setFound] = useState<Patient[]>([]);
-  const [patient, setPatient] = useState<Patient | null>(null);
+  const [patient, setPatient] = useState<Patient | null>(patient0 ?? null);
   const [newPhone, setNewPhone] = useState("");
   const [adding, setAdding] = useState(false);
   const [day, setDay] = useState(day0);
   const daySlots = slots(hours, day);
   const [time, setTime] = useState(time0 ?? daySlots[0] ?? "15:30");
-  const [minutes, setMinutes] = useState(30);
-  const [visitType, setVisitType] = useState("Consultation");
-  const [notes, setNotes] = useState("");
+  const [minutes, setMinutes] = useState(settings.visitTypes.find((v) => v.name === visit0)?.minutes ?? 30);
+  const [visitType, setVisitType] = useState(visit0 ?? "Consultation");
+  const [notes, setNotes] = useState(note0 ?? "");
   const [err, setErr] = useState("");
   const [clash, setClash] = useState(false);
   const [busy, setBusy] = useState(false);

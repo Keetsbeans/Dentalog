@@ -7,6 +7,7 @@ import { rupees } from "../../shared/money";
 import { dayLabel, STATUS_LABEL } from "../components/Appointments";
 import { label12, utcToIst } from "../../shared/time";
 import type { ApptStatus } from "../lib/api";
+import { ToothChart } from "../components/ToothChart";
 
 type Record_ = {
   patient: Patient & { notes: string | null };
@@ -51,6 +52,8 @@ export function PatientRecord() {
         </div>
       </div>
       {p.alerts.length > 0 && <div className="alert-bar" role="note"><b>Medical alerts:</b> {p.alerts.join(" · ")}</div>}
+
+      <ToothChart patient={p} />
 
       <div className="visit-grid">
         <section className="card">

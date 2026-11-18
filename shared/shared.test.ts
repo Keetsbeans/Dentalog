@@ -115,3 +115,21 @@ describe("WhatsApp messages", async () => {
     expect(waLink("044 2345678", "x")).toBeNull();
   });
 });
+
+describe("tooth chart", async () => {
+  const { parseTeeth, lookOf, blank, toothName } = await import("./teeth");
+  it("reads tooth numbers out of free text", () => {
+    expect(parseTeeth("16, 36 37 and 99")).toEqual([16, 36, 37]);
+    expect(parseTeeth("75")).toEqual([75]);
+    expect(parseTeeth("")).toEqual([]);
+  });
+  it("colours teeth by condition and plan", () => {
+    expect(lookOf(blank(16))).toBe("healthy");
+    expect(lookOf({ ...blank(16), condition: "Caries" })).toBe("problem");
+    expect(lookOf({ ...blank(16), plan: "RCT", done: 1 })).toBe("planned");
+    expect(lookOf({ ...blank(16), plan: "RCT", done: 3 })).toBe("done");
+    expect(lookOf({ ...blank(46), condition: "Missing" })).toBe("missing");
+    expect(toothName(36)).toBe("Lower left first molar");
+    expect(toothName(75)).toBe("Lower left baby second molar");
+  });
+});

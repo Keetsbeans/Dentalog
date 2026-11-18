@@ -40,12 +40,15 @@ function PayFields({ amount, setAmount, mode, setMode, reference, setReference }
 }
 
 /** New bill: patient, services (with tooth), discount, and the payment taken now. */
-export function NewBill({ patient: fixed, onClose, onSaved }: { patient?: Pick<Patient, "id" | "name" | "code">; onClose: () => void; onSaved: (msg: string, receiptId?: string) => void }) {
+export function NewBill({ patient: fixed, lines: lines0, onClose, onSaved }: {
+  patient?: Pick<Patient, "id" | "name" | "code">; lines?: { service: string; tooth: string; amount: string }[];
+  onClose: () => void; onSaved: (msg: string, receiptId?: string) => void;
+}) {
   const { settings } = useClinic();
   const [patient, setPatient] = useState(fixed ?? null);
   const [q, setQ] = useState("");
   const [found, setFound] = useState<Patient[]>([]);
-  const [lines, setLines] = useState<{ service: string; tooth: string; amount: string }[]>([]);
+  const [lines, setLines] = useState<{ service: string; tooth: string; amount: string }[]>(lines0 ?? []);
   const [discount, setDiscount] = useState("");
   const [payNow, setPayNow] = useState(true);
   const [amount, setAmount] = useState("");
