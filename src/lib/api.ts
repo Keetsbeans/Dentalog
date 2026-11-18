@@ -6,7 +6,7 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   });
   const body = (await res.json().catch(() => ({}))) as T & { error?: string; clash?: boolean };
   // A lapsed session anywhere sends the app back to the sign-in screen.
-  if (res.status === 401 && path !== "/login") window.dispatchEvent(new Event("dentalog:signed-out"));
+  if (res.status === 401 && !["/login", "/setup", "/reset-owner", "/me/password"].includes(path)) window.dispatchEvent(new Event("dentalog:signed-out"));
   if (!res.ok) throw new ApiError(body.error ?? `Request failed (${res.status})`, res.status, !!body.clash);
   return body;
 }
@@ -54,7 +54,9 @@ export type Visit = {
   notes: string | null; advice: string[]; adviceNote: string | null; nextVisit: string | null;
 };
 export type Addendum = { id: string; text: string; createdAt: string };
-export type VisitBundle = { visit: Visit; patient: Patient & { notes: string | null }; items: RxItem[]; addenda: Addendum[] };
+export type VisitBundle = { visit: Visit; patient: Patient & { notes: string | null }; items: RxItem[]; addenda: Addendum[];
+  /** Another doctor who signed (or started) the note; null means the clinic's own doctor. */
+  doctor?: { name: string; qualification: string | null } | null };
 
 /** Opens (or reopens) the visit note for a patient and returns its id. */
 export async function startVisit(patientId: string, appointmentId?: string) {

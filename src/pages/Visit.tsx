@@ -10,6 +10,7 @@ import { dayLabel } from "../components/Appointments";
 import { NewBill, printReceipt } from "../components/Billing";
 import { ToothPicker } from "../components/ToothChart";
 import { Addenda } from "../components/Addenda";
+import { useMe } from "../components/AuthGate";
 
 const FINDINGS = ["Deep caries", "Tender on percussion", "Periapical widening on IOPA", "Mobility grade I", "Swelling", "Fractured cusp", "Calculus", "Bleeding gums"];
 const DIAGNOSES = ["Irreversible pulpitis", "Reversible pulpitis", "Dental caries", "Periapical abscess", "Gingivitis", "Chronic periodontitis", "Cracked tooth", "Impacted tooth"];
@@ -44,7 +45,10 @@ export function Visit() {
     }).catch((e) => setError((e as Error).message));
   }, [id]);
 
-  const locked = !!data?.visit.signedAt;
+  const { can } = useMe();
+  const signed = !!data?.visit.signedAt;
+  // Signed notes are locked for everyone; logins without clinical writing only read.
+  const locked = signed || !can("clinical.write");
 
   // Draft saves itself a moment after each change.
   useEffect(() => {
@@ -106,15 +110,16 @@ export function Visit() {
           <h1>Visit note</h1>
         </div>
         <div className="head-actions">
-          <span className="muted">{locked ? `Signed ${dayLabel(utcToIst(data.visit.signedAt!).day)}` : saved ? `Draft saved ${saved}` : "Draft saves as you type"}</span>
-          {locked
+          <span className="muted">{signed ? `Signed ${dayLabel(utcToIst(data.visit.signedAt!).day)}` : saved ? `Draft saved ${saved}` : "Draft saves as you type"}</span>
+          {signed
             ? <button type="button" className="btn primary" onClick={() => window.open(`/print/rx/${id}`, "_blank")}>Print prescription</button>
-            : <button type="button" className={"btn " + (sugarMissing || clashes.length ? "" : "primary")} onClick={sign}>Sign note</button>}
+            : !locked && <button type="button" className={"btn " + (sugarMissing || clashes.length ? "" : "primary")} onClick={sign}>Sign note</button>}
         </div>
       </div>
       {patient.alerts.length > 0 && <div className="alert-bar" role="note"><b>Medical alerts:</b> {patient.alerts.join(" · ")}</div>}
       {error && <p className="error" role="alert">{error}</p>}
-      {locked && <p className="note-locked">This note is signed and locked. Add anything new as an addendum at the bottom.</p>}
+      {signed && <p className="note-locked">This note is signed and locked.{can("clinical.write") ? " Add anything new as an addendum at the bottom." : ""}</p>}
+      {!signed && locked && <p className="note-locked">Draft note. Only a doctor can write or sign it.</p>}
 
       <div className="visit-grid">
         <section className="card stack">
@@ -203,15 +208,15 @@ export function Visit() {
           {!locked && (sugarMissing || clashes.length > 0) && (
             <p className="warn">{sugarMissing ? "Add today’s blood sugar before signing (diabetic patient)." : "Resolve the allergy warning before signing."}</p>
           )}
-          {locked && (
+          {signed && (
             <div className="chips">
-              <button type="button" className="btn primary" onClick={() => setBilling(true)}>Make the bill</button>
+              {can("billing.take") && <button type="button" className="btn primary" onClick={() => setBilling(true)}>Make the bill</button>}
               <button type="button" className="btn" onClick={() => nav(`/patients/${patient.id}`)}>Back to {patient.name}</button>
             </div>
           )}
         </section>
       </div>
-      {locked && <Addenda visitId={id!} items={data.addenda} onAdded={(a) => setData({ ...data, addenda: [...data.addenda, a] })} />}
+      {signed && (can("clinical.write") || data.addenda.length > 0) && <Addenda readOnly={!can("clinical.write")} visitId={id!} items={data.addenda} onAdded={(a) => setData({ ...data, addenda: [...data.addenda, a] })} />}
       {billing && <NewBill patient={patient} onClose={() => setBilling(false)} onSaved={(msg, receiptId) => { setBilling(false); toast({ title: msg }); if (receiptId) printReceipt(receiptId); }} />}
     </>
   );

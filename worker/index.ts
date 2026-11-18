@@ -4,7 +4,7 @@ import type { BatchItem } from "drizzle-orm/batch";
 import { drizzle } from "drizzle-orm/d1";
 import * as s from "./db/schema";
 import { CLINIC_ID, type Env } from "./env";
-import { login, logout, me, requireSession } from "./auth";
+import { allowed, changeOwnPassword, login, logout, me, requireSession, resetOwner, setupOwner, who, type AppEnv } from "./auth";
 import { audit, isTrashKind, purgeExpired, purgeOne, restore, softDelete, type TrashKind } from "./trash";
 import { daysLeft, removalDate } from "../shared/trash";
 import { formatNumber, type Series } from "../shared/numbering";
@@ -20,10 +20,11 @@ import { logSent, queue, sentLog } from "./messages";
 import { getTeeth, putTooth } from "./teeth";
 import { today } from "./today";
 import { publicGet, publicPost } from "./public";
+import { addStaff, dropRequest, editStaff, listRequests, listStaff, requestMessage, sendRequest } from "./staff";
 import { editFile, getFile, listFiles, uploadFile } from "./files";
 import { activity, deleteImage, exportAll, getImage, imageVersions, putImage } from "./clinicData";
 
-const app = new Hono<{ Bindings: Env }>().basePath("/api");
+const app = new Hono<AppEnv>().basePath("/api");
 const db = (env: Env) => drizzle(env.DB, { schema: s });
 
 app.use("*", requireSession);
@@ -31,6 +32,16 @@ app.get("/health", (c) => c.json({ ok: true, app: "Dentalog" }));
 app.post("/login", login);
 app.post("/logout", logout);
 app.get("/me", me);
+app.post("/setup", setupOwner);
+app.post("/reset-owner", resetOwner);
+app.post("/me/password", changeOwnPassword);
+app.get("/staff", listStaff);
+app.post("/staff", addStaff);
+app.patch("/staff/:id", editStaff);
+app.get("/messages/requests", listRequests);
+app.post("/messages/requests", requestMessage);
+app.patch("/messages/requests/:id", sendRequest);
+app.delete("/messages/requests/:id", dropRequest);
 
 async function clinicSettings(env: Env) {
   const [clinic] = await db(env).select({ j: s.clinics.settingsJson }).from(s.clinics).where(eq(s.clinics.id, CLINIC_ID));
@@ -81,7 +92,7 @@ app.put("/clinic", async (c) => {
   }
   if (!Object.keys(set).length) return c.json({ error: "Nothing to save." }, 400);
   await db(c.env).update(s.clinics).set(set).where(eq(s.clinics.id, CLINIC_ID));
-  await audit(db(c.env), CLINIC_ID, "update", "clinic", CLINIC_ID, Object.keys(set));
+  await audit(db(c.env), who(c), "update", "clinic", CLINIC_ID, Object.keys(set));
   return c.json({ saved: true });
 });
 
@@ -129,7 +140,7 @@ app.post("/lab-orders", async (c) => {
     id, clinicId: CLINIC_ID, patientId: p.id, number, lab: b.lab.trim(), work: b.work.trim(),
     tooth: b.tooth?.trim() || null, shade: b.shade?.trim() || null, sentOn: b.sentOn, dueOn: b.dueOn, billPaise,
   });
-  await audit(d, CLINIC_ID, "create", "lab", id, { number });
+  await audit(d, who(c), "create", "lab", id, { number });
   return c.json({ id, number }, 201);
 });
 
@@ -141,6 +152,8 @@ app.patch("/lab-orders/:id", async (c) => {
     .where(and(eq(s.labOrders.id, id), eq(s.labOrders.clinicId, CLINIC_ID), isNull(s.labOrders.deletedAt)));
   if (!o) return c.json({ error: "That lab order was not found." }, 404);
   const set: Partial<typeof s.labOrders.$inferInsert> = {};
+  if (!allowed(c, "lab.write") && (b.billPaise !== undefined || b.payPaise !== undefined || b.dueOn !== undefined || (b.status && !["sent", "received"].includes(b.status))))
+    return c.json({ error: "Your login can only mark lab work as sent or received." }, 403);
   if (b.status !== undefined) { if (!LAB_STATUSES.includes(b.status)) return c.json({ error: "Unknown status." }, 400); set.status = b.status; }
   if (b.billPaise !== undefined) { if (!(b.billPaise >= 0)) return c.json({ error: "Check the lab bill." }, 400); set.billPaise = Math.round(b.billPaise); }
   if (b.dueOn !== undefined) { if (!DAY.test(b.dueOn)) return c.json({ error: "Check the due date." }, 400); set.dueOn = b.dueOn; }
@@ -153,7 +166,7 @@ app.patch("/lab-orders/:id", async (c) => {
   }
   if (!Object.keys(set).length) return c.json({ error: "Nothing to change." }, 400);
   await d.update(s.labOrders).set(set).where(eq(s.labOrders.id, id));
-  await audit(d, CLINIC_ID, "update", "lab", id, set);
+  await audit(d, who(c), "update", "lab", id, set);
   return c.json({ updated: true });
 });
 
@@ -227,7 +240,7 @@ app.post("/patients", async (c) => {
   const code = await nextNumber(c.env, "patient");
   const fileNo = await nextNumber(c.env, "file");
   await db(c.env).insert(s.patients).values({ ...f, id, clinicId: CLINIC_ID, code, fileNo, name: f.name!, phone: f.phone! });
-  await audit(db(c.env), CLINIC_ID, "create", "patient", id);
+  await audit(db(c.env), who(c), "create", "patient", id);
   return c.json({ id, code, fileNo }, 201);
 });
 
@@ -240,9 +253,11 @@ app.put("/patients/:id", async (c) => {
   const f = patientFields(await c.req.json<PatientIn>(), false);
   if (typeof f === "string") return c.json({ error: f }, 400);
   if (f.email !== undefined && f.email !== p.email) f.emailConfirmedAt = null;
+  // Only doctors change medical alerts; the front desk sees them.
+  if (!allowed(c, "alerts.edit")) delete f.alertsJson;
   if (!Object.keys(f).length) return c.json({ error: "Nothing to save." }, 400);
   await d.update(s.patients).set(f).where(eq(s.patients.id, id));
-  await audit(d, CLINIC_ID, "update", "patient", id, Object.keys(f));
+  await audit(d, who(c), "update", "patient", id, Object.keys(f));
   return c.json({ saved: true });
 });
 
@@ -295,7 +310,12 @@ async function loadVisit(env: Env, id: string) {
     .where(eq(s.prescriptionItems.visitId, id)).orderBy(asc(s.prescriptionItems.sortOrder));
   const addenda = await d.select({ id: s.visitAddenda.id, text: s.visitAddenda.text, createdAt: s.visitAddenda.createdAt })
     .from(s.visitAddenda).where(eq(s.visitAddenda.visitId, id)).orderBy(asc(s.visitAddenda.createdAt));
-  return { visit: visitOut(v), patient: parsePatient(p!), items, addenda };
+  // The doctor whose name goes on the prescription: whoever signed it, else whoever started it.
+  // The owner prints as the clinic's doctor (name, qualification and signature from Settings), so they get null.
+  const docId = v.signedBy ?? v.createdBy;
+  const [doc] = docId ? await d.select({ name: s.users.name, qualification: s.users.qualification, role: s.users.role }).from(s.users).where(eq(s.users.id, docId)) : [];
+  const doctor = doc && doc.role !== "owner" ? { name: doc.name, qualification: doc.qualification } : null;
+  return { visit: visitOut(v), patient: parsePatient(p!), items, addenda, doctor };
 }
 
 /** A dated addition to a signed note. The signed note itself never changes. */
@@ -308,7 +328,7 @@ app.post("/visits/:id/addenda", async (c) => {
   if (!v.signedAt) return c.json({ error: "The note isn’t signed yet, so just edit it." }, 400);
   const row = { id: crypto.randomUUID(), clinicId: CLINIC_ID, visitId: id, text: text.slice(0, 4000), createdAt: new Date().toISOString() };
   await db(c.env).insert(s.visitAddenda).values(row);
-  await audit(db(c.env), CLINIC_ID, "create", "addendum", row.id, { visitId: id });
+  await audit(db(c.env), who(c), "create", "addendum", row.id, { visitId: id });
   return c.json({ id: row.id, text: row.text, createdAt: row.createdAt }, 201);
 });
 
@@ -330,8 +350,8 @@ app.post("/visits", async (c) => {
     complaint = a?.notes ?? null;
   }
   const id = crypto.randomUUID();
-  await d.insert(s.visits).values({ id, clinicId: CLINIC_ID, patientId: p.id, appointmentId: b.appointmentId ?? null, complaint });
-  await audit(d, CLINIC_ID, "create", "visit", id, { patient: p.code });
+  await d.insert(s.visits).values({ id, clinicId: CLINIC_ID, patientId: p.id, appointmentId: b.appointmentId ?? null, complaint, createdBy: c.get("user").id });
+  await audit(d, who(c), "create", "visit", id, { patient: p.code });
   return c.json({ id }, 201);
 });
 
@@ -385,8 +405,8 @@ app.post("/visits/:id/sign", async (c) => {
   const clash = penicillinAllergy(alerts) && cur.items.find((i) => findDrug(i.drug, drugs)?.penicillin);
   if (clash && !b.allergyOverride) return c.json({ error: `Penicillin allergy recorded, and ${clash.drug} is a penicillin.` }, 400);
   const signedAt = new Date().toISOString();
-  await db(c.env).update(s.visits).set({ signedAt }).where(eq(s.visits.id, id));
-  await audit(db(c.env), CLINIC_ID, "sign", "visit", id, clash ? { allergyOverride: clash.drug } : undefined);
+  await db(c.env).update(s.visits).set({ signedAt, signedBy: c.get("user").id }).where(eq(s.visits.id, id));
+  await audit(db(c.env), who(c), "sign", "visit", id, clash ? { allergyOverride: clash.drug } : undefined);
   return c.json({ signedAt });
 });
 
@@ -446,6 +466,7 @@ app.post("/invoices", async (c) => {
   if (!lines.length) return c.json({ error: "Add at least one service." }, 400);
   if (lines.some((l) => !Number.isInteger(l.amountPaise) || l.amountPaise < 0)) return c.json({ error: "Check the amounts." }, 400);
   const discountPaise = Math.max(0, Math.round(b.discountPaise ?? 0));
+  if (discountPaise > 0 && !allowed(c, "billing.edit")) return c.json({ error: "Only the clinic owner can give a discount." }, 403);
   const totalPaise = billTotal(lines, discountPaise);
   if (b.payment) {
     const bad = checkPay(b.payment, totalPaise);
@@ -467,7 +488,7 @@ app.post("/invoices", async (c) => {
     }));
   }
   await d.batch(ops as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]]);
-  await audit(d, CLINIC_ID, "create", "invoice", id, { number, totalPaise, receipt: receipt?.number });
+  await audit(d, who(c), "create", "invoice", id, { number, totalPaise, receipt: receipt?.number });
   return c.json({ id, number, receipt }, 201);
 });
 
@@ -497,7 +518,7 @@ app.put("/invoices/:id", async (c) => {
     d.update(s.invoices).set({ discountPaise, totalPaise }).where(eq(s.invoices.id, id)),
     d.insert(s.invoiceEdits).values({ id: crypto.randomUUID(), clinicId: CLINIC_ID, invoiceId: id, reason, beforeJson: JSON.stringify(before), afterJson: JSON.stringify(after) }),
   ]);
-  await audit(d, CLINIC_ID, "update", "invoice", id, { reason, from: sum.totalPaise, to: totalPaise });
+  await audit(d, who(c), "update", "invoice", id, { reason, from: sum.totalPaise, to: totalPaise });
   return c.json({ saved: true, totalPaise });
 });
 
@@ -515,7 +536,7 @@ app.post("/invoices/:id/receipts", async (c) => {
     id: rid, clinicId: CLINIC_ID, patientId: sum.patient.id, invoiceId: id, number,
     amountPaise: b.amountPaise, mode: b.mode, reference: b.reference?.trim() || null, receivedAt: new Date().toISOString(),
   });
-  await audit(db(c.env), CLINIC_ID, "create", "receipt", rid, { number, amountPaise: b.amountPaise });
+  await audit(db(c.env), who(c), "create", "receipt", rid, { number, amountPaise: b.amountPaise });
   return c.json({ id: rid, number }, 201);
 });
 
@@ -595,7 +616,7 @@ app.post("/appointments", async (c) => {
     id, clinicId: CLINIC_ID, patientId: patient.id, startsAt, minutes, visitType,
     notes: b.notes?.trim() || null, squeezedIn: !!taken,
   });
-  await audit(db(c.env), CLINIC_ID, "create", "appointment", id, { patient: patient.code, startsAt });
+  await audit(db(c.env), who(c), "create", "appointment", id, { patient: patient.code, startsAt });
   return c.json({ id, squeezedIn: !!taken }, 201);
 });
 
@@ -621,7 +642,7 @@ app.patch("/appointments/:id", async (c) => {
   }
   if (!Object.keys(set).length) return c.json({ error: "Nothing to change." }, 400);
   await db(c.env).update(s.appointments).set(set).where(eq(s.appointments.id, id));
-  await audit(db(c.env), CLINIC_ID, "update", "appointment", id, set);
+  await audit(db(c.env), who(c), "update", "appointment", id, set);
   return c.json({ updated: true });
 });
 

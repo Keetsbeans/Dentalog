@@ -3,6 +3,7 @@ import { drizzle } from "drizzle-orm/d1";
 import type { Context } from "hono";
 import * as s from "./db/schema";
 import { CLINIC_ID, type Env } from "./env";
+import { allowed } from "./auth";
 import { addDays, hoursOn, istToUtc, todayIst, toMinutes, type Hours } from "../shared/time";
 import { rupees } from "../shared/money";
 import { readSettings } from "../shared/settings";
@@ -16,6 +17,8 @@ export type TodayData = {
   outstandingPaise: number; owingPatients: number;
   attention: Attention[];
   week: { day: string; visits: number; bookedMin: number; openMin: number }[];
+  /** Whether this login sees money totals, and bills. */
+  money: boolean; bills: boolean;
 };
 
 const MODE: Record<string, string> = { cash: "Cash", upi: "UPI", card: "Card", insurance: "Insurance", emi: "EMI" };
@@ -57,7 +60,7 @@ export async function today(c: C) {
       .where(and(eq(s.visits.clinicId, CLINIC_ID), isNull(s.visits.deletedAt), isNotNull(s.visits.signedAt))).orderBy(desc(s.visits.signedAt)),
     d.select({ startsAt: s.appointments.startsAt, minutes: s.appointments.minutes, status: s.appointments.status, id: s.appointments.id }).from(s.appointments)
       .where(and(eq(s.appointments.clinicId, CLINIC_ID), isNull(s.appointments.deletedAt), gte(s.appointments.startsAt, start), lt(s.appointments.startsAt, istToUtc(addDays(day, 7), "00:00")))),
-    d.select({ kind: s.messages.kind, refId: s.messages.refId }).from(s.messages).where(and(eq(s.messages.clinicId, CLINIC_ID), inArray(s.messages.kind, ["reminder", "soon"]))),
+    d.select({ kind: s.messages.kind, refId: s.messages.refId }).from(s.messages).where(and(eq(s.messages.clinicId, CLINIC_ID), inArray(s.messages.kind, ["reminder", "soon"]), eq(s.messages.status, "sent"))),
     d.select({ a: s.appointments, p: pName }).from(s.appointments).innerJoin(s.patients, eq(s.patients.id, s.appointments.patientId))
       .where(and(eq(s.appointments.clinicId, CLINIC_ID), isNull(s.appointments.deletedAt), isNull(s.patients.deletedAt), eq(s.appointments.status, "booked"), isNotNull(s.appointments.rescheduleAt), gte(s.appointments.startsAt, nowIso))),
   ]);
@@ -123,6 +126,13 @@ export async function today(c: C) {
   const recalls = [...latest].filter(([pid, at]) => at <= ago(182) && at >= ago(548) && !booked.has(pid)).length;
   if (recalls) attention.push({ key: "recalls", tone: "blue", title: `${recalls} ${recalls === 1 ? "patient is" : "patients are"} due for a 6-month check-up`, detail: "Send recalls from Messages", href: "/messages" });
 
+  // Messages staff asked the owner to send
+  if (allowed(c, "messages.send")) {
+    const asks = await d.select({ name: s.patients.name }).from(s.messages).innerJoin(s.patients, eq(s.patients.id, s.messages.patientId))
+      .where(and(eq(s.messages.clinicId, CLINIC_ID), eq(s.messages.status, "requested")));
+    if (asks.length) attention.unshift({ key: "asks", tone: "blue", title: `${asks.length} ${asks.length === 1 ? "message is" : "messages are"} waiting for your approval`, detail: names(asks.map((a) => a.name)), href: "/messages" });
+  }
+
   // Rest of the week
   const week: TodayData["week"] = [];
   for (let i = 0; i < 7; i++) {
@@ -133,5 +143,12 @@ export async function today(c: C) {
     week.push({ day: dd, visits: list.length, bookedMin: list.reduce((a, x) => a + x.minutes, 0), openMin: h ? toMinutes(h[1]) - toMinutes(h[0]) : 0 });
   }
 
-  return c.json({ collectedPaise, collectedFrom, modes, toBill, outstandingPaise, owingPatients: owing.size, attention, week } satisfies TodayData);
+  // Money is for the owner; bills for whoever can see billing. Everyone else gets the rest.
+  const money = allowed(c, "money.totals"), bills = allowed(c, "billing.view");
+  const hidden = new Set([...(money ? [] : ["owing"]), ...(allowed(c, "messages.send") ? [] : ["soon", "reminders", "recalls"])]);
+  return c.json({
+    collectedPaise: money ? collectedPaise : 0, collectedFrom: money ? collectedFrom : 0, modes: money ? modes : [],
+    toBill: bills ? toBill : [], outstandingPaise: money ? outstandingPaise : 0, owingPatients: money ? owing.size : 0,
+    attention: attention.filter((a) => !hidden.has(a.key)), week, money, bills,
+  } satisfies TodayData);
 }

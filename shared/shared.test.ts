@@ -185,3 +185,22 @@ describe("printouts, holidays and export", () => {
     expect(strFromU8(files["xl/workbook.xml"]!)).toContain('name="Bill lines"');
   });
 });
+
+import { can, perms } from "./roles";
+describe("roles", () => {
+  it("gives the owner everything", () => {
+    expect(can("owner", "money.totals")).toBe(true);
+    expect(can("owner", "settings")).toBe(true);
+    expect(can("owner", "messages.send")).toBe(true);
+  });
+  it("lets doctors treat and bill, but not send messages, delete or see totals", () => {
+    expect(can("doctor", "clinical.write")).toBe(true);
+    expect(can("doctor", "billing.take")).toBe(true);
+    for (const p of ["messages.send", "delete", "money.totals", "settings", "billing.edit"] as const) expect(can("doctor", p)).toBe(false);
+  });
+  it("keeps the front desk out of billing unless the owner allows it", () => {
+    expect(perms("reception")).toEqual([]);
+    expect(perms("reception", { receptionBilling: true })).toEqual(["billing.view", "billing.take"]);
+    expect(can("reception", "clinical.write")).toBe(false);
+  });
+});

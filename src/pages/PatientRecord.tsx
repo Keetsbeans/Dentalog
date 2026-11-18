@@ -11,6 +11,8 @@ import { ToothChart } from "../components/ToothChart";
 import { PatientFiles } from "../components/PatientFiles";
 import { PatientForm } from "../components/PatientForm";
 import { formatPhone } from "../../shared/phone";
+import { useMe } from "../components/AuthGate";
+import { AskMessage } from "../components/AskMessage";
 
 type Record_ = {
   patient: Patient & { notes: string | null };
@@ -27,7 +29,9 @@ export function PatientRecord() {
   const [billing, setBilling] = useState(false);
   const [openBill, setOpenBill] = useState<string | null>(null);
   const toast = useToast();
-  const loadBills = () => api<InvoiceSummary[]>(`/invoices?patientId=${id}`).then(setBills).catch(() => setBills([]));
+  const { can } = useMe();
+  const [asking, setAsking] = useState(false);
+  const loadBills = () => can("billing.view") ? api<InvoiceSummary[]>(`/invoices?patientId=${id}`).then(setBills).catch(() => setBills([])) : Promise.resolve();
   const load = () => api<Record_>(`/patients/${id}`).then(setR).catch((e) => setError((e as Error).message));
   const [editing, setEditing] = useState(false);
   useEffect(() => { load(); loadBills(); }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -53,8 +57,9 @@ export function PatientRecord() {
         </div>
         <div className="head-actions">
           <button type="button" className="btn" onClick={() => setEditing(true)}>Edit details</button>
-          <button type="button" className="btn" onClick={() => setBilling(true)}>New bill</button>
-          <button type="button" className="btn primary" onClick={newVisit}>Start visit note</button>
+          {!can("messages.send") && <button type="button" className="btn" onClick={() => setAsking(true)}>Ask to message</button>}
+          {can("billing.take") && <button type="button" className="btn" onClick={() => setBilling(true)}>New bill</button>}
+          {can("clinical.write") && <button type="button" className="btn primary" onClick={newVisit}>Start visit note</button>}
         </div>
       </div>
       {p.alerts.length > 0 && <div className="alert-bar" role="note"><b>Medical alerts:</b> {p.alerts.join(" · ")}</div>}
@@ -84,7 +89,7 @@ export function PatientRecord() {
             })}
           </ul>
         </section>
-        <section className="card">
+        {can("billing.view") && <section className="card">
           <h2>Bills {bills.some((b) => b.balancePaise > 0) && <span className="pill s-no_show">{rupees(bills.reduce((a, b) => a + b.balancePaise, 0))} due</span>}</h2>
           {bills.length === 0 && <p className="empty">No bills yet.</p>}
           <ul className="list">
@@ -95,7 +100,7 @@ export function PatientRecord() {
               </button></li>
             ))}
           </ul>
-        </section>
+        </section>}
         <section className="card">
           <h2>Coming up</h2>
           {upcoming.length === 0 && <p className="empty">Nothing booked. <Link to="/calendar">Book from the calendar</Link>.</p>}
@@ -109,6 +114,7 @@ export function PatientRecord() {
       </div>
       {billing && <NewBill patient={p} onClose={() => setBilling(false)} onSaved={(msg, receiptId) => { setBilling(false); loadBills(); toast({ title: msg }); if (receiptId) printReceipt(receiptId); }} />}
       {editing && <PatientForm patient={p} onClose={() => setEditing(false)} onSaved={(msg) => { setEditing(false); toast({ title: msg }); load(); }} />}
+      {asking && <AskMessage patient={p} onClose={() => setAsking(false)} onSaved={(msg) => { setAsking(false); toast({ title: msg }); }} />}
       {openBill && <BillDialog id={openBill} onClose={() => setOpenBill(null)} onChanged={loadBills} />}
     </>
   );

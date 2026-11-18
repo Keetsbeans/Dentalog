@@ -7,6 +7,7 @@ import { ConfirmDialog } from "./ConfirmDialog";
 import { PhoneInput } from "./PatientForm";
 import { formatPhone } from "../../shared/phone";
 import { label12, slots, utcToIst } from "../../shared/time";
+import { useMe } from "./AuthGate";
 
 const LENGTHS: [number, string][] = [[15, "15 min"], [20, "20 min"], [30, "30 min"], [45, "45 min"], [60, "1 hour"], [90, "1½ hours"]];
 
@@ -161,6 +162,7 @@ export function BookDialog({ day: day0, time: time0, patient: patient0, visitTyp
 
 /** Tap an appointment: see it, move it along, mark no-show, cancel or delete. */
 export function ApptDialog({ appt, onClose, onChanged }: { appt: Appointment; onClose: () => void; onChanged: () => void }) {
+  const { can } = useMe();
   const toast = useToast();
   const nav = useNavigate();
   const [err, setErr] = useState("");
@@ -228,7 +230,7 @@ export function ApptDialog({ appt, onClose, onChanged }: { appt: Appointment; on
           {appt.status === "booked" && <button type="button" className="btn" onClick={() => change("no_show")}>No-show</button>}
           {(appt.status === "booked" || appt.status === "arrived") && <button type="button" className="btn" onClick={() => change("cancelled")}>Cancel visit</button>}
           {(appt.status === "no_show" || appt.status === "cancelled" || appt.status === "done") && <button type="button" className="btn" onClick={() => change("booked")}>Back to booked</button>}
-          <button type="button" className="btn danger-outline" onClick={() => setConfirm(true)}>Delete</button>
+          {can("delete") && <button type="button" className="btn danger-outline" onClick={() => setConfirm(true)}>Delete</button>}
         </div>
       </div>
       <ConfirmDialog open={confirm} title="Delete this appointment?" confirmLabel="Delete appointment" onCancel={() => setConfirm(false)} onConfirm={remove}>

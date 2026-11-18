@@ -8,17 +8,19 @@ import { formatPhone } from "../../shared/phone";
 import type { PrintLayout } from "../../shared/print";
 
 /** The page itself: letterhead (or space for one), body, signature and footer, laid out from Settings → Printouts. */
-function Sheet({ clinic, layout, children, signLeft, footLeft }: { clinic: Clinic | null; layout: PrintLayout; children: ReactNode; signLeft: ReactNode; footLeft: string }) {
-  const doctor = clinic?.doctorName ?? "";
+function Sheet({ clinic, layout, children, signLeft, footLeft, by }: { clinic: Clinic | null; layout: PrintLayout; children: ReactNode; signLeft: ReactNode; footLeft: string; by?: VisitBundle["doctor"] }) {
+  // A prescription another doctor signed carries their name; the saved signature image is only the clinic doctor's.
+  const doctor = by?.name ?? clinic?.doctorName ?? "";
+  const qual = by ? by.qualification : clinic?.qualification;
   const head = imageUrl(clinic, "letterhead");
-  const sig = layout.signature === "image" ? imageUrl(clinic, "signature") : null;
+  const sig = layout.signature === "image" && !by ? imageUrl(clinic, "signature") : null;
   const logo = imageUrl(clinic, "logo");
   return (
     <article className={`a4 paper-${layout.paper} accent-${layout.accent}`} style={{ paddingBottom: `${layout.bottomMm}mm` }}>
       {layout.header === "letterhead" && head && (
         <header className="a4-head">
           <img src={head} alt={`${clinic?.name ?? ""} letterhead`} />
-          <div className="a4-doc"><b>{doctor}</b>{clinic?.qualification ? `, ${clinic.qualification}` : ""}</div>
+          <div className="a4-doc"><b>{doctor}</b>{qual ? `, ${qual}` : ""}</div>
         </header>
       )}
       {layout.header === "blank" && <div className="a4-blank" style={{ height: `${layout.topMm}mm` }} aria-hidden="true" />}
@@ -27,7 +29,7 @@ function Sheet({ clinic, layout, children, signLeft, footLeft }: { clinic: Clini
           {logo && <img src={logo} alt="" />}
           <div>
             <b className="a4-clinic">{clinic?.name}</b>
-            <span>{doctor}{clinic?.qualification ? `, ${clinic.qualification}` : ""}</span>
+            <span>{doctor}{qual ? `, ${qual}` : ""}</span>
             <span className="soft">{[clinic?.address, clinic?.phone].filter(Boolean).join(" · ")}</span>
           </div>
         </header>
@@ -60,7 +62,7 @@ export function RxSheet({ data, clinic, layout }: { data: VisitBundle; clinic: C
   const advice = [...v.advice, v.adviceNote ?? ""].filter(Boolean);
   const S = layout.show;
   return (
-    <Sheet clinic={clinic} layout={layout} footLeft={layout.footer}
+    <Sheet clinic={clinic} layout={layout} footLeft={layout.footer} by={data.doctor}
       signLeft={S.next && v.nextVisit ? <div className="a4-next"><span className="a4-label teal">NEXT VISIT</span><b>{v.nextVisit}</b></div> : <span />}>
       <div className="a4-patient">
         <span><b className="big">{p.name}</b>{p.gender ? ` · ${p.gender}` : ""}{age ? `, ${age}` : ""}</span>

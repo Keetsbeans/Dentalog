@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useMe } from "./AuthGate";
 import { api, type Patient } from "../lib/api";
 import { useClinic } from "../lib/clinic";
 import { useToast } from "./Toast";
@@ -57,6 +58,9 @@ const VISIT_FOR: Record<PlanName, string> = { Filling: "Filling", RCT: "Root can
 /** The tooth chart, treatment plan and tooth history on the patient record. */
 export function ToothChart({ patient }: { patient: Patient }) {
   const { settings } = useClinic();
+  const { can } = useMe();
+  /** Logins without clinical writing see the chart but can't change it. */
+  const write = can("clinical.write");
   const toast = useToast();
   const age = patient.birthYear ? new Date().getFullYear() - patient.birthYear : null;
   const [dent, setDent] = useState<Dentition>(age !== null && age < 12 ? "child" : "adult");
@@ -124,9 +128,9 @@ export function ToothChart({ patient }: { patient: Patient }) {
       <section className="chart-main">
         <div className="card">
           <div className="card-head">
-            <div><h2>Tooth chart</h2><span className="muted">Tap a tooth to see and change it</span></div>
+            <div><h2>Tooth chart</h2><span className="muted">{write ? "Tap a tooth to see and change it" : "Tap a tooth to see its history"}</span></div>
             <div className="row-actions">
-              <label className="check small"><input type="checkbox" checked={!!many} onChange={(e) => setMany(e.target.checked ? [] : null)} /> Select several</label>
+              {write && <label className="check small"><input type="checkbox" checked={!!many} onChange={(e) => setMany(e.target.checked ? [] : null)} /> Select several</label>}
               <DentitionSwitch dent={dent} onChange={(d) => { setDent(d); setSel(d === "adult" ? 16 : 75); if (many) setMany([]); }} />
             </div>
           </div>
@@ -159,7 +163,7 @@ export function ToothChart({ patient }: { patient: Patient }) {
                         <td className="nums">{t.done} of {sittings(t)}</td>
                         <td><span className={`pill ${st[1]}`}>{st[0]}</span></td>
                         <td className="num nums">{p === null ? <span className="muted">Add to price list</span> : rupees(p)}</td>
-                        <td className="num">{complete(t) && !t.billed && <button type="button" className="btn small" onClick={() => setBilling(t)}>Bill</button>}</td>
+                        <td className="num">{complete(t) && !t.billed && can("billing.take") && <button type="button" className="btn small" onClick={() => setBilling(t)}>Bill</button>}</td>
                       </tr>
                     );
                   })}
@@ -167,7 +171,7 @@ export function ToothChart({ patient }: { patient: Patient }) {
               </table>
             </div>
           )}
-          {planned.length > 0 && (
+          {planned.length > 0 && can("billing.view") && (
             <p className="plan-total nums">Plan total <b>{rupees(total)}</b> · Done {rupees(doneValue)}{toBill.length > 0 && <> · <span className="due">{toBill.length} to bill</span></>}</p>
           )}
         </div>
@@ -182,16 +186,16 @@ export function ToothChart({ patient }: { patient: Patient }) {
           <fieldset className="field"><legend>Condition</legend>
             <div className="chips">
               {CONDITIONS.map((c) => (
-                <button key={c} type="button" disabled={!picked.length} aria-pressed={allHave((t) => t.condition === c)} className={"chip dark" + (allHave((t) => t.condition === c) ? " on" : "")}
+                <button key={c} type="button" disabled={!picked.length || !write} aria-pressed={allHave((t) => t.condition === c)} className={"chip dark" + (allHave((t) => t.condition === c) ? " on" : "")}
                   onClick={() => changeAll(picked, { condition: c }, `${who}: ${c.toLowerCase()}`)}>{c}</button>
               ))}
             </div>
           </fieldset>
           <fieldset className="field"><legend>Plan</legend>
             <div className="chips">
-              <button type="button" disabled={!picked.length} aria-pressed={allHave((t) => !t.plan)} className={"chip blue" + (allHave((t) => !t.plan) ? " on" : "")} onClick={() => changeAll(picked, { plan: null }, `${who}: plan removed`)}>None</button>
+              <button type="button" disabled={!picked.length || !write} aria-pressed={allHave((t) => !t.plan)} className={"chip blue" + (allHave((t) => !t.plan) ? " on" : "")} onClick={() => changeAll(picked, { plan: null }, `${who}: plan removed`)}>None</button>
               {PLAN_NAMES.map((p) => (
-                <button key={p} type="button" disabled={!picked.length} aria-pressed={allHave((t) => t.plan === p)} className={"chip blue" + (allHave((t) => t.plan === p) ? " on" : "")}
+                <button key={p} type="button" disabled={!picked.length || !write} aria-pressed={allHave((t) => t.plan === p)} className={"chip blue" + (allHave((t) => t.plan === p) ? " on" : "")}
                   onClick={() => changeAll(picked, { plan: p }, `${who}: ${PLANS[p].label} planned`)}>{p}</button>
               ))}
             </div>
@@ -213,11 +217,11 @@ export function ToothChart({ patient }: { patient: Patient }) {
               {complete(s) ? (
                 <div className="row-actions">
                   <b className="ok">Treatment complete</b>
-                  <button type="button" className="link-btn" onClick={() => change(sel, { done: s.done - 1 }, `Tooth ${sel}: last sitting undone`)}>Undo last sitting</button>
+                  {write && <button type="button" className="link-btn" onClick={() => change(sel, { done: s.done - 1 }, `Tooth ${sel}: last sitting undone`)}>Undo last sitting</button>}
                 </div>
               ) : (
                 <div className="row-actions">
-                  <button type="button" className="btn primary" onClick={() => change(sel, { done: s.done + 1 }, `Tooth ${sel}: ${PLANS[s.plan!].steps[s.done]} done`)}>Mark sitting done</button>
+                  {write && <button type="button" className="btn primary" onClick={() => change(sel, { done: s.done + 1 }, `Tooth ${sel}: ${PLANS[s.plan!].steps[s.done]} done`)}>Mark sitting done</button>}
                   <button type="button" className="btn" onClick={() => setBooking(s.plan)}>{s.done === 0 ? "Book first sitting" : "Book next sitting"}</button>
                 </div>
               )}

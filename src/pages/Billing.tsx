@@ -5,11 +5,13 @@ import { BillDialog, NewBill, printReceipt } from "../components/Billing";
 import { dayLabel } from "../components/Appointments";
 import { rupees } from "../../shared/money";
 import { todayIst, utcToIst } from "../../shared/time";
+import { useMe } from "../components/AuthGate";
 
 type Filter = "all" | "due" | "today";
 
 export function Billing() {
   const toast = useToast();
+  const { can } = useMe();
   const [rows, setRows] = useState<InvoiceSummary[] | null>(null);
   const [error, setError] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
@@ -34,14 +36,14 @@ export function Billing() {
     <>
       <div className="page-head">
         <h1>Billing</h1>
-        <button type="button" className="btn primary" onClick={() => setAdding(true)}>New bill</button>
+        {can("billing.take") && <button type="button" className="btn primary" onClick={() => setAdding(true)}>New bill</button>}
       </div>
       {error && <p className="error" role="alert">{error}</p>}
-      <div className="stats">
+      {can("money.totals") && <div className="stats">
         <div className="stat"><b className="nums">{rupees(todays.reduce((a, r) => a + r.totalPaise, 0))}</b><span>Billed today</span></div>
         <div className="stat"><b className="nums">{rupees(todays.reduce((a, r) => a + r.paidPaise, 0))}</b><span>Collected on today’s bills</span></div>
         <div className="stat"><b className={"nums" + (due > 0 ? " due" : "")}>{rupees(due)}</b><span>Balance due, all bills</span></div>
-      </div>
+      </div>}
       <div className="card">
         <div className="toolbar">
           <label className="sr-only" htmlFor="bsearch">Search bills</label>

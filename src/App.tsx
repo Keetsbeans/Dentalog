@@ -2,7 +2,9 @@ import { Route, Routes, useLocation } from "react-router";
 import { Shell } from "./components/Shell";
 import { ToastProvider } from "./components/Toast";
 import { ClinicProvider } from "./lib/clinic";
-import { AuthGate } from "./components/AuthGate";
+import { AuthGate, useMe } from "./components/AuthGate";
+import type { Perm } from "../shared/roles";
+import type { ReactNode } from "react";
 import { Today } from "./pages/Today";
 import { Calendar } from "./pages/Calendar";
 import { Patients } from "./pages/Patients";
@@ -18,6 +20,7 @@ import { ComingNext } from "./pages/ComingNext";
 import { Reports } from "./pages/Reports";
 import { Messages } from "./pages/Messages";
 import { Confirm } from "./pages/Confirm";
+import { MyAccount } from "./pages/MyAccount";
 
 export function App() {
   // The patient's appointment link needs no sign-in.
@@ -38,12 +41,13 @@ export function App() {
                 <Route path="/patients" element={<Patients />} />
                 <Route path="/patients/:id" element={<PatientRecord />} />
                 <Route path="/visits/:id" element={<Visit />} />
-                <Route path="/recently-deleted" element={<Trash />} />
-                <Route path="/billing" element={<Billing />} />
+                <Route path="/recently-deleted" element={<Need perm="delete"><Trash /></Need>} />
+                <Route path="/billing" element={<Need perm="billing.view"><Billing /></Need>} />
                 <Route path="/lab-orders" element={<LabOrders />} />
-                <Route path="/reports" element={<Reports />} />
-                <Route path="/messages" element={<Messages />} />
-                <Route path="/settings" element={<Settings />} />
+                <Route path="/reports" element={<Need perm="money.totals"><Reports /></Need>} />
+                <Route path="/messages" element={<Need perm="messages.send"><Messages /></Need>} />
+                <Route path="/settings" element={<Need perm="settings"><Settings /></Need>} />
+                <Route path="/account" element={<MyAccount />} />
                 <Route path="*" element={<ComingNext title="Page not found" />} />
               </Routes>
             </Shell>
@@ -53,4 +57,10 @@ export function App() {
     </ClinicProvider>
     </AuthGate>
   );
+}
+
+/** A page some logins can't open. */
+function Need({ perm, children }: { perm: Perm; children: ReactNode }) {
+  if (useMe().can(perm)) return <>{children}</>;
+  return <><h1>Not open to your login</h1><div className="card empty">Ask the clinic owner if you need this page.</div></>;
 }

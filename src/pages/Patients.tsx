@@ -5,9 +5,11 @@ import { ConfirmDialog } from "../components/ConfirmDialog";
 import { useToast } from "../components/Toast";
 import { PatientForm } from "../components/PatientForm";
 import { formatPhone } from "../../shared/phone";
+import { useMe } from "../components/AuthGate";
 
 
 export function Patients() {
+  const { can } = useMe();
   const toast = useToast();
   const [q, setQ] = useState("");
   const [rows, setRows] = useState<Patient[] | null>(null);
@@ -59,9 +61,9 @@ export function Patients() {
                   <td className="nums">{formatPhone(p.phoneCc, p.phone)}</td>
                   <td>{p.alerts.map((a) => <span key={a} className="tag alert">{a}</span>)}</td>
                   <td className="right">
-                    <button type="button" className="icon-btn" aria-label={`Delete ${p.name}`} onClick={() => setToDelete(p)}>
+                    {can("delete") && <button type="button" className="icon-btn" aria-label={`Delete ${p.name}`} onClick={() => setToDelete(p)}>
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /></svg>
-                    </button>
+                    </button>}
                   </td>
                 </tr>
               ))}

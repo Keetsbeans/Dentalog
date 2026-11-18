@@ -2,16 +2,19 @@ import type { ReactNode } from "react";
 import { NavLink } from "react-router";
 import { useClinic } from "../lib/clinic";
 import { imageUrl } from "../lib/api";
-import { signOut } from "./AuthGate";
+import { signOut, useMe } from "./AuthGate";
+import { ROLE_LABEL, type Perm } from "../../shared/roles";
 
-const NAV: [string, string][] = [
-  ["Today", "/"], ["Calendar", "/calendar"], ["Patients", "/patients"], ["Billing", "/billing"],
-  ["Lab orders", "/lab-orders"], ["Reports", "/reports"], ["Messages", "/messages"],
-  ["Settings", "/settings"], ["Recently deleted", "/recently-deleted"],
+/** Each page, and the permission it needs (none = everyone). */
+const NAV: [string, string, Perm?][] = [
+  ["Today", "/"], ["Calendar", "/calendar"], ["Patients", "/patients"], ["Billing", "/billing", "billing.view"],
+  ["Lab orders", "/lab-orders"], ["Reports", "/reports", "money.totals"], ["Messages", "/messages", "messages.send"],
+  ["Settings", "/settings", "settings"], ["Recently deleted", "/recently-deleted", "delete"],
 ];
 
 export function Shell({ children }: { children: ReactNode }) {
   const { clinic } = useClinic();
+  const { user, can } = useMe();
   return (
     <div className="app">
       <nav className="side" aria-label="Main">
@@ -25,11 +28,14 @@ export function Shell({ children }: { children: ReactNode }) {
             <span>{clinic?.name ?? "Oyster Dental Care"}</span>
           </div>
         </div>
-        {NAV.map(([label, to]) => (
+        {NAV.filter(([, , p]) => !p || can(p)).map(([label, to]) => (
           <NavLink key={to} to={to} end={to === "/"} className={({ isActive }) => "nav-link" + (isActive ? " active" : "")}>
             {label}
           </NavLink>
         ))}
+        <NavLink to="/account" className={({ isActive }) => "nav-link me-link" + (isActive ? " active" : "")}>
+          <b>{user.name}</b><span className="muted">{ROLE_LABEL[user.role]}</span>
+        </NavLink>
         <button type="button" className="nav-link signout" onClick={signOut}>Sign out</button>
       </nav>
       <main className="main">{children}</main>

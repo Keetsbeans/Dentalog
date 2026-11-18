@@ -1,3 +1,4 @@
+import { who } from "./auth";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import type { Context } from "hono";
@@ -54,7 +55,7 @@ export async function uploadFile(c: C) {
   const row = { id, clinicId: CLINIC_ID, patientId: pid, visitId, kind, tooth, note, r2Key, filename, contentType, bytes: file.size, createdAt: new Date().toISOString() };
   try { await db(c.env).insert(s.files).values(row); }
   catch (e) { await c.env.FILES.delete(r2Key); throw e; }
-  await audit(db(c.env), CLINIC_ID, "upload", "file", id, { kind, bytes: file.size });
+  await audit(db(c.env), who(c), "upload", "file", id, { kind, bytes: file.size });
   const { r2Key: _k, clinicId: _c, patientId: _p, ...out } = row;
   return c.json(out);
 }
@@ -93,6 +94,6 @@ export async function editFile(c: C) {
   if (b.note !== undefined) set.note = b.note?.trim().slice(0, 200) || null;
   const id = c.req.param("id")!;
   await db(c.env).update(s.files).set(set).where(and(eq(s.files.id, id), eq(s.files.clinicId, CLINIC_ID)));
-  await audit(db(c.env), CLINIC_ID, "update", "file", id, Object.keys(set));
+  await audit(db(c.env), who(c), "update", "file", id, Object.keys(set));
   return c.json({ ok: true });
 }
