@@ -90,3 +90,14 @@ describe("bills", () => {
     expect(billTotal([{ amountPaise: 100000 }], 200000)).toBe(0);
   });
 });
+
+import { readSettings, DEFAULT_SETTINGS } from "./settings";
+describe("settings", () => {
+  it("falls back to defaults for anything not saved or broken", () => {
+    expect(readSettings("{}")).toEqual(DEFAULT_SETTINGS);
+    expect(readSettings("not json").services).toBe(DEFAULT_SETTINGS.services);
+    const s = readSettings(JSON.stringify({ services: [{ name: "Consultation", paise: 30000 }] }));
+    expect(s.services).toEqual([{ name: "Consultation", paise: 30000 }]);
+    expect(s.drugs).toBe(DEFAULT_SETTINGS.drugs);
+  });
+});

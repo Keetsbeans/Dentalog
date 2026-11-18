@@ -11,6 +11,8 @@ import { Visit } from "./pages/Visit";
 import { PrintRx } from "./pages/PrintRx";
 import { PrintReceipt } from "./pages/PrintReceipt";
 import { Billing } from "./pages/Billing";
+import { Settings } from "./pages/Settings";
+import { LabOrders } from "./pages/LabOrders";
 import { Trash } from "./pages/Trash";
 import { ComingNext } from "./pages/ComingNext";
 
@@ -33,10 +35,10 @@ export function App() {
                 <Route path="/visits/:id" element={<Visit />} />
                 <Route path="/recently-deleted" element={<Trash />} />
                 <Route path="/billing" element={<Billing />} />
-                <Route path="/lab-orders" element={<ComingNext title="Lab orders" />} />
+                <Route path="/lab-orders" element={<LabOrders />} />
                 <Route path="/reports" element={<ComingNext title="Reports" />} />
                 <Route path="/messages" element={<ComingNext title="Messages" />} />
-                <Route path="/settings" element={<ComingNext title="Settings" />} />
+                <Route path="/settings" element={<Settings />} />
                 <Route path="*" element={<ComingNext title="Page not found" />} />
               </Routes>
             </Shell>

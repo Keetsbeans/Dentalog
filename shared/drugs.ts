@@ -24,7 +24,7 @@ export const DRUG_SETS: Record<string, string[]> = {
   "Post-extraction": ["Ketorol DT", "Hexidine mouthwash"],
 };
 
-export const findDrug = (name: string) => DRUGS.find((d) => d.name.toLowerCase() === name.trim().toLowerCase());
+export const findDrug = (name: string, list: Drug[] = DRUGS) => list.find((d) => d.name.toLowerCase() === name.trim().toLowerCase());
 
 /** True when the patient's alerts record a penicillin allergy. */
 export const penicillinAllergy = (alerts: string[]) => alerts.some((a) => /penicillin|amoxi/i.test(a));

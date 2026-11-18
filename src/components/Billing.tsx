@@ -3,7 +3,8 @@ import { Link } from "react-router";
 import { api, type Invoice, type Patient, type PayMode } from "../lib/api";
 import { useToast } from "./Toast";
 import { ConfirmDialog } from "./ConfirmDialog";
-import { billTotal, PAY_MODES, SERVICES } from "../../shared/services";
+import { billTotal, PAY_MODES } from "../../shared/services";
+import { useClinic } from "../lib/clinic";
 import { rupees } from "../../shared/money";
 import { dayLabel } from "./Appointments";
 import { label12, utcToIst } from "../../shared/time";
@@ -40,6 +41,7 @@ function PayFields({ amount, setAmount, mode, setMode, reference, setReference }
 
 /** New bill: patient, services (with tooth), discount, and the payment taken now. */
 export function NewBill({ patient: fixed, onClose, onSaved }: { patient?: Pick<Patient, "id" | "name" | "code">; onClose: () => void; onSaved: (msg: string, receiptId?: string) => void }) {
+  const { settings } = useClinic();
   const [patient, setPatient] = useState(fixed ?? null);
   const [q, setQ] = useState("");
   const [found, setFound] = useState<Patient[]>([]);
@@ -95,7 +97,7 @@ export function NewBill({ patient: fixed, onClose, onSaved }: { patient?: Pick<P
 
         <fieldset className="field"><legend>Add services</legend>
           <div className="chips">
-            {SERVICES.map((s) => <button key={s.name} type="button" className="chip" onClick={() => setLines([...lines, { service: s.name, tooth: "", amount: s.paise ? asRupees(s.paise) : "" }])}>+ {s.name}{s.paise ? ` ${rupees(s.paise)}` : ""}</button>)}
+            {settings.services.map((s) => <button key={s.name} type="button" className="chip" onClick={() => setLines([...lines, { service: s.name, tooth: "", amount: s.paise ? asRupees(s.paise) : "" }])}>+ {s.name}{s.paise ? ` ${rupees(s.paise)}` : ""}</button>)}
           </div>
         </fieldset>
         {lines.length > 0 && (

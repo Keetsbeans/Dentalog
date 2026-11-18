@@ -21,7 +21,8 @@ export type TrashItem = {
   id: string; title: string; detail: string; deletedAt: string; reason: string | null; daysLeft: number;
 };
 
-export type Clinic = { id: string; name: string; doctorName: string; qualification: string | null; phone: string | null; address: string | null; hoursJson: string; upiId: string | null };
+export type Clinic = { id: string; name: string; doctorName: string; qualification: string | null; phone: string | null; address: string | null; hoursJson: string; upiId: string | null;
+  email: string | null; website: string | null; settings: import("../../shared/settings").ClinicSettings };
 
 export type ApptStatus = "booked" | "arrived" | "in_chair" | "done" | "no_show" | "cancelled";
 export type Appointment = {
@@ -57,3 +58,9 @@ export type InvoiceSummary = {
 };
 export type Receipt = { id: string; number: string; amountPaise: number; mode: PayMode; reference: string | null; receivedAt: string; invoiceId: string | null };
 export type Invoice = InvoiceSummary & { lines: { id: string; service: string; tooth: string | null; amountPaise: number }[]; receipts: Receipt[] };
+
+export type LabOrder = {
+  id: string; number: string; lab: string; work: string; tooth: string | null; shade: string | null;
+  sentOn: string; dueOn: string; status: "sent" | "received" | "fitted"; billPaise: number; paidPaise: number; createdAt: string;
+  patient: { id: string; name: string; code: string };
+};

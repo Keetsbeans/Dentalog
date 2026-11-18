@@ -30,6 +30,8 @@ export const clinics = sqliteTable("clinics", {
   upiId: text("upi_id"),
   /** Weekly hours, e.g. {"mon":["15:30","20:30"], ..., "sun":null} */
   hoursJson: text("hours_json").notNull().default("{}"),
+  /** Price list, medicines, sets, visit types and labs edited in Settings. Empty keys fall back to defaults. */
+  settingsJson: text("settings_json").notNull().default("{}"),
   createdAt: createdAt(),
 });
 

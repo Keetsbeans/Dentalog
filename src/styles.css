@@ -276,3 +276,27 @@ h2 .pill { margin-left: 8px; vertical-align: middle; }
 .check.small { min-height: 32px; font-size: 13px; font-weight: 500; }
 .nav-link.signout { border: 0; background: none; font: inherit; font-size: 14px; font-weight: 600; color: var(--muted); cursor: pointer; text-align: left; margin-top: auto; }
 @container (max-width: 760px) { .nav-link.signout { margin-top: 0; } }
+
+/* ---------- Settings and lab orders ---------- */
+.tabs { display: flex; gap: 4px; overflow-x: auto; margin-bottom: 16px; border-bottom: 1px solid var(--line); }
+.tab { flex: none; min-height: 44px; padding: 0 14px; border: 0; border-bottom: 3px solid transparent; background: none; font-weight: 600; font-size: 14px; color: var(--ink-2); cursor: pointer; }
+.tab.on { color: var(--teal); border-bottom-color: var(--teal); }
+.hours-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; border-bottom: 1px solid var(--line-soft); padding-bottom: 6px; }
+.hours-row .check { min-width: 140px; }
+.hours-times { display: flex; align-items: center; gap: 8px; }
+.hours-times .input { width: 130px; }
+.med { display: flex; flex-direction: column; gap: 8px; border: 1px solid var(--line); border-radius: 12px; padding: 10px; }
+.med-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 8px; align-items: end; }
+.lab-row { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; border-bottom: 1px solid var(--line-soft); padding-bottom: 10px; }
+.lab-row .grow { flex: 1 1 200px; }
+.lab-row .amt { width: 170px; }
+.save-bar { position: sticky; bottom: 12px; margin-top: 16px; display: flex; justify-content: space-between; align-items: center; gap: 12px; background: var(--ink); color: #fff; border-radius: 14px; padding: 10px 10px 10px 16px; box-shadow: 0 12px 32px rgba(18, 35, 43, 0.3); }
+.visit-grid.wide-left { grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr); }
+.lab-item { display: flex; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line-soft); flex-wrap: wrap; }
+.lab-main { display: flex; flex-direction: column; gap: 2px; font-size: 14px; min-width: 0; flex: 1 1 260px; }
+.lab-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.q-sub.due { color: var(--red); font-weight: 600; }
+@container (max-width: 760px) {
+  .visit-grid.wide-left { grid-template-columns: minmax(0, 1fr); }
+  .lab-row .amt { width: auto; flex: 1; }
+}

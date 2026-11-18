@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { api, type Food, type RxItem, type VisitBundle } from "../lib/api";
 import { useToast } from "../components/Toast";
-import { DRUG_SETS, DRUGS, findDrug, penicillinAllergy } from "../../shared/drugs";
+import { findDrug as findIn, penicillinAllergy } from "../../shared/drugs";
+import { useClinic } from "../lib/clinic";
 import { directions } from "../../shared/rx";
 import { label12, utcToIst } from "../../shared/time";
 import { dayLabel } from "../components/Appointments";
@@ -21,6 +22,8 @@ export function Visit() {
   const { id } = useParams();
   const nav = useNavigate();
   const toast = useToast();
+  const { settings } = useClinic();
+  const findDrug = (n: string) => findIn(n, settings.drugs);
   const [data, setData] = useState<VisitBundle | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [items, setItems] = useState<RxItem[]>([]);
@@ -77,7 +80,7 @@ export function Visit() {
   const sugarMissing = diabetic && !draft.vitals.sugar?.trim();
   const allergy = penicillinAllergy(patient.alerts);
   const clashes = items.filter((i) => allergy && findDrug(i.drug)?.penicillin && !overrides.includes(i.drug));
-  const drugMatches = drugQ.trim() ? DRUGS.filter((d) => (d.name + d.generic).toLowerCase().includes(drugQ.trim().toLowerCase())).slice(0, 6) : [];
+  const drugMatches = drugQ.trim() ? settings.drugs.filter((d) => (d.name + d.generic).toLowerCase().includes(drugQ.trim().toLowerCase())).slice(0, 6) : [];
 
   async function sign() {
     setError("");
@@ -137,7 +140,7 @@ export function Visit() {
           <h2>Prescription</h2>
           {!locked && (
             <>
-              <div className="chips">{Object.entries(DRUG_SETS).map(([k, v]) => <button key={k} type="button" className="chip" onClick={() => addDrugs(v)}>+ {k}</button>)}</div>
+              <div className="chips">{Object.entries(settings.sets).map(([k, v]) => <button key={k} type="button" className="chip" onClick={() => addDrugs(v)}>+ {k}</button>)}</div>
               <div className="field">
                 <label htmlFor="drug-q" className="sr-only">Add a medicine</label>
                 <input id="drug-q" className="input" value={drugQ} onChange={(e) => setDrugQ(e.target.value)} placeholder="Add a medicine" autoComplete="off"
