@@ -6,8 +6,7 @@ import { useToast } from "./Toast";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { label12, slots, utcToIst } from "../../shared/time";
 
-export const VISIT_TYPES = ["Consultation", "Scaling", "Filling", "Root canal", "Extraction", "Crown / bridge", "Braces review", "Review", "Emergency"];
-const LENGTHS: [number, string][] = [[15, "15 min"], [30, "30 min"], [45, "45 min"], [60, "1 hour"], [90, "1½ hours"]];
+const LENGTHS: [number, string][] = [[15, "15 min"], [20, "20 min"], [30, "30 min"], [45, "45 min"], [60, "1 hour"], [90, "1½ hours"]];
 
 export const STATUS_LABEL: Record<ApptStatus, string> = {
   booked: "Booked", arrived: "Arrived", in_chair: "In chair", done: "Done", no_show: "No-show", cancelled: "Cancelled",
@@ -35,7 +34,7 @@ export async function setStatus(a: Appointment, status: ApptStatus) {
 export function BookDialog({ day: day0, time: time0, onClose, onSaved }: {
   day: string; time?: string; onClose: () => void; onSaved: (msg: string) => void;
 }) {
-  const { hours } = useClinic();
+  const { hours, settings } = useClinic();
   const [q, setQ] = useState("");
   const [found, setFound] = useState<Patient[]>([]);
   const [patient, setPatient] = useState<Patient | null>(null);
@@ -129,8 +128,8 @@ export function BookDialog({ day: day0, time: time0, onClose, onSaved }: {
 
         <fieldset className="field"><legend>Visit</legend>
           <div className="chips">
-            {VISIT_TYPES.map((v) => (
-              <button key={v} type="button" aria-pressed={visitType === v} className={"chip teal" + (visitType === v ? " on" : "")} onClick={() => setVisitType(v)}>{v}</button>
+            {settings.visitTypes.map(({ name: v, minutes: m }) => (
+              <button key={v} type="button" aria-pressed={visitType === v} className={"chip teal" + (visitType === v ? " on" : "")} onClick={() => { setVisitType(v); setMinutes(m); }}>{v}</button>
             ))}
           </div>
         </fieldset>

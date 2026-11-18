@@ -8,7 +8,8 @@ import { login, logout, me, requireSession } from "./auth";
 import { audit, isTrashKind, purgeExpired, purgeOne, restore, softDelete, type TrashKind } from "./trash";
 import { daysLeft, removalDate } from "../shared/trash";
 import { formatNumber, type Series } from "../shared/numbering";
-import { istToUtc, label12, overlaps, utcToIst } from "../shared/time";
+import { istToUtc, label12, overlaps, utcToIst, type Hours } from "../shared/time";
+import { readSettings, type ClinicSettings } from "../shared/settings";
 import { directions, quantity, type Food } from "../shared/rx";
 import { findDrug, penicillinAllergy } from "../shared/drugs";
 import { billTotal, PAY_MODES, type PayMode } from "../shared/services";
@@ -23,9 +24,107 @@ app.post("/login", login);
 app.post("/logout", logout);
 app.get("/me", me);
 
+async function clinicSettings(env: Env) {
+  const [clinic] = await db(env).select({ j: s.clinics.settingsJson }).from(s.clinics).where(eq(s.clinics.id, CLINIC_ID));
+  return readSettings(clinic?.j);
+}
+
 app.get("/clinic", async (c) => {
   const [clinic] = await db(c.env).select().from(s.clinics).where(eq(s.clinics.id, CLINIC_ID));
-  return clinic ? c.json(clinic) : c.json({ error: "Clinic not set up yet." }, 404);
+  return clinic ? c.json({ ...clinic, settings: readSettings(clinic.settingsJson) }) : c.json({ error: "Clinic not set up yet." }, 404);
+});
+
+const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
+/** Settings → Save. Only the fields sent are changed. */
+app.put("/clinic", async (c) => {
+  const b = await c.req.json<{
+    name?: string; doctorName?: string; qualification?: string | null; phone?: string | null; address?: string | null;
+    email?: string | null; website?: string | null; upiId?: string | null; hours?: Hours; settings?: ClinicSettings;
+  }>();
+  const set: Partial<typeof s.clinics.$inferInsert> = {};
+  const txt = (v?: string | null) => (v === undefined ? undefined : v?.trim() || null);
+  if (b.name !== undefined) { if (!b.name.trim()) return c.json({ error: "Enter the clinic name." }, 400); set.name = b.name.trim(); }
+  if (b.doctorName !== undefined) { if (!b.doctorName.trim()) return c.json({ error: "Enter the doctor’s name." }, 400); set.doctorName = b.doctorName.trim(); }
+  for (const k of ["qualification", "phone", "address", "email", "website", "upiId"] as const) if (b[k] !== undefined) set[k] = txt(b[k]);
+  if (b.upiId && !/^[\w.\-]{2,}@[a-zA-Z]{2,}$/.test(b.upiId.trim())) return c.json({ error: "The UPI ID should look like name@bank." }, 400);
+  if (b.hours) {
+    for (const [day, h] of Object.entries(b.hours)) {
+      if (h && (!TIME.test(h[0]) || !TIME.test(h[1]) || h[0] >= h[1])) return c.json({ error: `Check the opening hours for ${day}.` }, 400);
+    }
+    set.hoursJson = JSON.stringify(b.hours);
+  }
+  if (b.settings) {
+    const st = b.settings;
+    if (st.services?.some((x) => !x.name?.trim() || !Number.isInteger(x.paise) || x.paise < 0)) return c.json({ error: "Each service needs a name and a price." }, 400);
+    if (st.drugs?.some((d) => !d.name?.trim())) return c.json({ error: "Each medicine needs a name." }, 400);
+    try { st.drugs?.forEach((d) => directions(d.dose, d.days, d.food)); } catch (e) { return c.json({ error: (e as Error).message }, 400); }
+    if (st.labs?.some((l) => !l.name?.trim() || !(l.days > 0))) return c.json({ error: "Each lab needs a name and usual days." }, 400);
+    set.settingsJson = JSON.stringify(st);
+  }
+  if (!Object.keys(set).length) return c.json({ error: "Nothing to save." }, 400);
+  await db(c.env).update(s.clinics).set(set).where(eq(s.clinics.id, CLINIC_ID));
+  await audit(db(c.env), CLINIC_ID, "update", "clinic", CLINIC_ID, Object.keys(set));
+  return c.json({ saved: true });
+});
+
+// ---------- Lab orders ----------
+type LabStatus = "sent" | "received" | "fitted";
+const LAB_STATUSES: LabStatus[] = ["sent", "received", "fitted"];
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+app.get("/lab-orders", async (c) => {
+  const rows = await db(c.env)
+    .select({ o: s.labOrders, p: { id: s.patients.id, name: s.patients.name, code: s.patients.code } })
+    .from(s.labOrders).innerJoin(s.patients, eq(s.patients.id, s.labOrders.patientId))
+    .where(and(eq(s.labOrders.clinicId, CLINIC_ID), isNull(s.labOrders.deletedAt), isNull(s.patients.deletedAt)))
+    .orderBy(desc(s.labOrders.sentOn), desc(s.labOrders.number)).limit(500);
+  return c.json(rows.map(({ o, p }) => ({ ...o, patient: p })));
+});
+
+app.post("/lab-orders", async (c) => {
+  const b = await c.req.json<{ patientId?: string; lab?: string; work?: string; tooth?: string; shade?: string; sentOn?: string; dueOn?: string; billPaise?: number }>();
+  const d = db(c.env);
+  const [p] = await d.select().from(s.patients)
+    .where(and(eq(s.patients.id, b.patientId ?? ""), eq(s.patients.clinicId, CLINIC_ID), isNull(s.patients.deletedAt)));
+  if (!p) return c.json({ error: "Choose a patient." }, 400);
+  if (!b.lab?.trim()) return c.json({ error: "Choose the lab." }, 400);
+  if (!b.work?.trim()) return c.json({ error: "Say what work is being made." }, 400);
+  if (!b.sentOn || !DAY.test(b.sentOn) || !b.dueOn || !DAY.test(b.dueOn)) return c.json({ error: "Enter the sent and due dates." }, 400);
+  if (b.dueOn < b.sentOn) return c.json({ error: "The due date is before the sent date." }, 400);
+  const billPaise = Math.round(b.billPaise ?? 0);
+  if (!(billPaise >= 0)) return c.json({ error: "Check the lab bill." }, 400);
+  const id = crypto.randomUUID();
+  const number = await nextNumber(c.env, "lab");
+  await d.insert(s.labOrders).values({
+    id, clinicId: CLINIC_ID, patientId: p.id, number, lab: b.lab.trim(), work: b.work.trim(),
+    tooth: b.tooth?.trim() || null, shade: b.shade?.trim() || null, sentOn: b.sentOn, dueOn: b.dueOn, billPaise,
+  });
+  await audit(d, CLINIC_ID, "create", "lab", id, { number });
+  return c.json({ id, number }, 201);
+});
+
+app.patch("/lab-orders/:id", async (c) => {
+  const id = c.req.param("id");
+  const b = await c.req.json<{ status?: LabStatus; billPaise?: number; payPaise?: number; dueOn?: string }>();
+  const d = db(c.env);
+  const [o] = await d.select().from(s.labOrders)
+    .where(and(eq(s.labOrders.id, id), eq(s.labOrders.clinicId, CLINIC_ID), isNull(s.labOrders.deletedAt)));
+  if (!o) return c.json({ error: "That lab order was not found." }, 404);
+  const set: Partial<typeof s.labOrders.$inferInsert> = {};
+  if (b.status !== undefined) { if (!LAB_STATUSES.includes(b.status)) return c.json({ error: "Unknown status." }, 400); set.status = b.status; }
+  if (b.billPaise !== undefined) { if (!(b.billPaise >= 0)) return c.json({ error: "Check the lab bill." }, 400); set.billPaise = Math.round(b.billPaise); }
+  if (b.dueOn !== undefined) { if (!DAY.test(b.dueOn)) return c.json({ error: "Check the due date." }, 400); set.dueOn = b.dueOn; }
+  if (b.payPaise !== undefined) {
+    const bill = set.billPaise ?? o.billPaise;
+    const pay = Math.round(b.payPaise);
+    if (!(pay > 0)) return c.json({ error: "Enter the amount paid to the lab." }, 400);
+    if (o.paidPaise + pay > bill) return c.json({ error: `That is more than the ${rupees(bill - o.paidPaise)} still owed.` }, 400);
+    set.paidPaise = o.paidPaise + pay;
+  }
+  if (!Object.keys(set).length) return c.json({ error: "Nothing to change." }, 400);
+  await d.update(s.labOrders).set(set).where(eq(s.labOrders.id, id));
+  await audit(d, CLINIC_ID, "update", "lab", id, set);
+  return c.json({ updated: true });
 });
 
 /** Takes the next number in a series (patient, invoice, receipt...) atomically. */
@@ -158,7 +257,7 @@ app.put("/visits/:id", async (c) => {
   let lines: (typeof s.prescriptionItems.$inferInsert)[];
   try {
     lines = items.filter((i) => i.drug.trim()).map((i, n) => ({
-      id: crypto.randomUUID(), visitId: id, drug: i.drug.trim(), generic: i.generic ?? findDrug(i.drug)?.generic ?? null,
+      id: crypto.randomUUID(), visitId: id, drug: i.drug.trim(), generic: i.generic ?? null,
       dose: i.dose.trim().toUpperCase(), days: i.days, food: i.food,
       instruction: directions(i.dose, i.days, i.food), quantity: quantity(i.dose, i.days), sortOrder: n,
     }));
@@ -188,7 +287,8 @@ app.post("/visits/:id/sign", async (c) => {
   const { alerts } = cur.patient;
   if (alerts.includes("Diabetic") && !cur.visit.vitals.sugar?.trim()) return c.json({ error: "Add today’s blood sugar before signing (diabetic patient)." }, 400);
   const b = await c.req.json<{ allergyOverride?: boolean }>().catch(() => ({} as { allergyOverride?: boolean }));
-  const clash = penicillinAllergy(alerts) && cur.items.find((i) => findDrug(i.drug)?.penicillin);
+  const drugs = (await clinicSettings(c.env)).drugs;
+  const clash = penicillinAllergy(alerts) && cur.items.find((i) => findDrug(i.drug, drugs)?.penicillin);
   if (clash && !b.allergyOverride) return c.json({ error: `Penicillin allergy recorded, and ${clash.drug} is a penicillin.` }, 400);
   const signedAt = new Date().toISOString();
   await db(c.env).update(s.visits).set({ signedAt }).where(eq(s.visits.id, id));

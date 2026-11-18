@@ -15,6 +15,13 @@
       "when": 1794939687360,
       "tag": "0002_visit_tooth_generic",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1794999936807,
+      "tag": "0003_clinic_settings",
+      "breakpoints": true
     }
   ]
 }
