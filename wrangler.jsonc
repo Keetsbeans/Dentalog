@@ -15,8 +15,8 @@
       "migrations_dir": "migrations"
     }
   ],
-  // X-rays and photos will live in R2 once uploads are built:
-  // "r2_buckets": [{ "binding": "FILES", "bucket_name": "dentalog-files" }],
+  // X-rays, photos, reports and other patient files. The first deploy creates the bucket.
+  "r2_buckets": [{ "binding": "FILES", "bucket_name": "dentalog-files" }],
   // Every night at 02:00 IST (20:30 UTC): permanently remove items deleted more than 30 days ago.
   "triggers": { "crons": ["30 20 * * *"] },
   "observability": { "enabled": true }

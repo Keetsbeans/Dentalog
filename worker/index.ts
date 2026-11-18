@@ -20,6 +20,7 @@ import { logSent, queue, sentLog } from "./messages";
 import { getTeeth, putTooth } from "./teeth";
 import { today } from "./today";
 import { publicGet, publicPost } from "./public";
+import { editFile, getFile, listFiles, uploadFile } from "./files";
 import { activity, deleteImage, exportAll, getImage, imageVersions, putImage } from "./clinicData";
 
 const app = new Hono<{ Bindings: Env }>().basePath("/api");
@@ -41,6 +42,10 @@ app.get("/clinic", async (c) => {
   return clinic ? c.json({ ...clinic, settings: readSettings(clinic.settingsJson), images: await imageVersions(c.env) }) : c.json({ error: "Clinic not set up yet." }, 404);
 });
 app.get("/clinic/images/:key", getImage);
+app.get("/patients/:id/files", listFiles);
+app.post("/patients/:id/files", uploadFile);
+app.get("/files/:id", getFile);
+app.patch("/files/:id", editFile);
 app.put("/clinic/images/:key", putImage);
 app.delete("/clinic/images/:key", deleteImage);
 app.get("/export", exportAll);
