@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { NavLink } from "react-router";
 import { useClinic } from "../lib/clinic";
+import { imageUrl } from "../lib/api";
 import { signOut } from "./AuthGate";
 
 const NAV: [string, string][] = [
@@ -20,7 +21,7 @@ export function Shell({ children }: { children: ReactNode }) {
             <span className="brand-name">Dentalog</span>
           </div>
           <div className="clinic-row">
-            <img src="/clinic-logo.png" alt="" width={22} height={22} />
+            <img src={imageUrl(clinic, "logo")!} alt="" width={22} height={22} />
             <span>{clinic?.name ?? "Oyster Dental Care"}</span>
           </div>
         </div>

@@ -154,3 +154,34 @@ describe("saved message wording", () => {
     expect(s.templates.recall).toBe("My own recall text {name}");
   });
 });
+
+describe("printouts, holidays and export", () => {
+  it("reads a print layout safely", async () => {
+    const { readPrint, DEFAULT_PRINT } = await import("./print");
+    expect(readPrint(undefined)).toEqual(DEFAULT_PRINT);
+    const p = readPrint({ header: "blank", topMm: 500, show: { alerts: false }, paper: "A5", accent: "pink" });
+    expect(p.header).toBe("blank");
+    expect(p.topMm).toBe(120);
+    expect(p.show.alerts).toBe(false);
+    expect(p.show.diagnosis).toBe(true);
+    expect(p.paper).toBe("A5");
+    expect(p.accent).toBe("teal");
+  });
+  it("closes the clinic on a holiday", async () => {
+    const { hoursOn, slots } = await import("./time");
+    const hours = { mon: ["15:30", "20:30"], tue: ["15:30", "20:30"], wed: null, thu: null, fri: null, sat: null, sun: null } as const;
+    expect(hoursOn(hours as never, "2026-11-16")).toEqual(["15:30", "20:30"]);
+    expect(hoursOn(hours as never, "2026-11-16", [{ day: "2026-11-16" }])).toBeNull();
+    expect(slots(hours as never, "2026-11-16", 30, [{ day: "2026-11-16" }])).toEqual([]);
+  });
+  it("writes an Excel workbook that unzips with one sheet per table", async () => {
+    const { workbook, table } = await import("../src/lib/xlsx");
+    const { unzipSync, strFromU8 } = await import("fflate");
+    const files = unzipSync(workbook({ Patients: table([{ code: "CJ963", name: "A & B <x>", age: 42 }]), "Bill lines": table([]) }));
+    expect(Object.keys(files)).toContain("xl/worksheets/sheet2.xml");
+    const s1 = strFromU8(files["xl/worksheets/sheet1.xml"]!);
+    expect(s1).toContain("A &amp; B &lt;x&gt;");
+    expect(s1).toContain("<v>42</v>");
+    expect(strFromU8(files["xl/workbook.xml"]!)).toContain('name="Bill lines"');
+  });
+});

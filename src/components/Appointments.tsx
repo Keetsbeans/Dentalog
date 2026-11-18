@@ -52,7 +52,7 @@ export function BookDialog({ day: day0, time: time0, patient: patient0, visitTyp
   const [newCc, setNewCc] = useState("91");
   const [adding, setAdding] = useState(false);
   const [day, setDay] = useState(day0);
-  const daySlots = slots(hours, day);
+  const daySlots = slots(hours, day, 30, settings.holidays);
   const [time, setTime] = useState(time0 ?? daySlots[0] ?? "15:30");
   const [minutes, setMinutes] = useState(settings.visitTypes.find((v) => v.name === visit0)?.minutes ?? 30);
   const [visitType, setVisitType] = useState(visit0 ?? "Consultation");
