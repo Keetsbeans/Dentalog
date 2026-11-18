@@ -8,6 +8,7 @@ import { dayLabel, STATUS_LABEL } from "../components/Appointments";
 import { label12, utcToIst } from "../../shared/time";
 import type { ApptStatus } from "../lib/api";
 import { ToothChart } from "../components/ToothChart";
+import { PatientFiles } from "../components/PatientFiles";
 import { PatientForm } from "../components/PatientForm";
 import { formatPhone } from "../../shared/phone";
 
@@ -59,6 +60,7 @@ export function PatientRecord() {
       {p.alerts.length > 0 && <div className="alert-bar" role="note"><b>Medical alerts:</b> {p.alerts.join(" · ")}</div>}
 
       <ToothChart patient={p} />
+      <PatientFiles patientId={p.id} patientName={p.name} />
 
       <div className="visit-grid">
         <section className="card">

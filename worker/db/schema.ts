@@ -280,7 +280,9 @@ export const files = sqliteTable("files", {
   clinicId: clinicId(),
   patientId: text("patient_id").references(() => patients.id),
   visitId: text("visit_id").references(() => visits.id),
-  kind: text("kind", { enum: ["xray", "photo", "consent", "document", "letterhead"] }).notNull(),
+  kind: text("kind", { enum: ["xray", "photo", "consent", "document", "letterhead", "other"] }).notNull(),
+  /** A short note shown under the file, e.g. "OPG before extraction". */
+  note: text("note"),
   tooth: text("tooth"),
   r2Key: text("r2_key").notNull(),
   filename: text("filename").notNull(),
