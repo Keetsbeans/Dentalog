@@ -76,14 +76,14 @@ export async function restore(db: Db, clinicId: string, kind: TrashKind, id: str
  * (number, amount, reason) so the numbering never has an unexplained gap.
  * A patient takes their visits, appointments, bills and files with them.
  */
-export async function purgeOne(db: Db, env: { FILES: R2Bucket }, clinicId: string, kind: TrashKind, id: string) {
+export async function purgeOne(db: Db, env: { FILES?: R2Bucket }, clinicId: string, kind: TrashKind, id: string) {
   const t = TRASHABLE[kind];
   const [row] = await db.select().from(t).where(and(eq(t.id, id), eq(t.clinicId, clinicId), isNotNull(t.deletedAt)));
   if (!row) return false;
 
   if (kind === "patient") {
     const files = await db.select().from(s.files).where(eq(s.files.patientId, id));
-    for (const f of files) await env.FILES.delete(f.r2Key);
+    for (const f of files) await env.FILES?.delete(f.r2Key);
     const visitIds = (await db.select({ id: s.visits.id }).from(s.visits).where(eq(s.visits.patientId, id))).map((v) => v.id);
     for (const v of visitIds) await db.delete(s.prescriptionItems).where(eq(s.prescriptionItems.visitId, v));
     await db.delete(s.files).where(eq(s.files.patientId, id));
@@ -103,7 +103,7 @@ export async function purgeOne(db: Db, env: { FILES: R2Bucket }, clinicId: strin
     }
     await db.delete(s.invoiceLines).where(eq(s.invoiceLines.invoiceId, id));
   }
-  if (kind === "file") await env.FILES.delete((row as typeof s.files.$inferSelect).r2Key);
+  if (kind === "file") await env.FILES?.delete((row as typeof s.files.$inferSelect).r2Key);
 
   await db.delete(t).where(eq(t.id, id));
   await audit(db, clinicId, "purge", kind, id, kind === "invoice" || kind === "receipt" ? row : undefined);
@@ -111,7 +111,7 @@ export async function purgeOne(db: Db, env: { FILES: R2Bucket }, clinicId: strin
 }
 
 /** Nightly job: purge everything deleted more than 30 days ago. */
-export async function purgeExpired(db: Db, env: { FILES: R2Bucket }, now = new Date()) {
+export async function purgeExpired(db: Db, env: { FILES?: R2Bucket }, now = new Date()) {
   const cutoff = purgeBefore(now);
   let count = 0;
   for (const kind of Object.keys(TRASHABLE) as TrashKind[]) {

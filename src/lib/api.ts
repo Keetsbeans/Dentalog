@@ -5,6 +5,8 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
     headers: { "content-type": "application/json", ...(init?.headers ?? {}) },
   });
   const body = (await res.json().catch(() => ({}))) as T & { error?: string; clash?: boolean };
+  // A lapsed session anywhere sends the app back to the sign-in screen.
+  if (res.status === 401 && path !== "/login") window.dispatchEvent(new Event("dentalog:signed-out"));
   if (!res.ok) throw new ApiError(body.error ?? `Request failed (${res.status})`, res.status, !!body.clash);
   return body;
 }

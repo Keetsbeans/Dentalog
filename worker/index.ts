@@ -4,6 +4,7 @@ import type { BatchItem } from "drizzle-orm/batch";
 import { drizzle } from "drizzle-orm/d1";
 import * as s from "./db/schema";
 import { CLINIC_ID, type Env } from "./env";
+import { login, logout, me, requireSession } from "./auth";
 import { audit, isTrashKind, purgeExpired, purgeOne, restore, softDelete, type TrashKind } from "./trash";
 import { daysLeft, removalDate } from "../shared/trash";
 import { formatNumber, type Series } from "../shared/numbering";
@@ -16,7 +17,11 @@ import { amountInWords, rupees } from "../shared/money";
 const app = new Hono<{ Bindings: Env }>().basePath("/api");
 const db = (env: Env) => drizzle(env.DB, { schema: s });
 
+app.use("*", requireSession);
 app.get("/health", (c) => c.json({ ok: true, app: "Dentalog" }));
+app.post("/login", login);
+app.post("/logout", logout);
+app.get("/me", me);
 
 app.get("/clinic", async (c) => {
   const [clinic] = await db(c.env).select().from(s.clinics).where(eq(s.clinics.id, CLINIC_ID));

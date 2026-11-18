@@ -18,17 +18,20 @@ npm run dev                # http://localhost:5173
 npm test
 ```
 
-## First deploy to Cloudflare
+## Run it on your computer: sign-in
 
-```sh
-npx wrangler login
-npx wrangler d1 create dentalog          # paste the database_id into wrangler.jsonc
-npx wrangler r2 bucket create dentalog-files
-npm run db:migrate:remote
-npm run deploy
-```
+Create a file called `.dev.vars` with `DENTALOG_PASSWORD=any-test-password`. The app asks for it on first load.
 
-Do not put real patient data online until login is in place.
+## Put it online (Cloudflare Workers Builds)
+
+1. Cloudflare dashboard → **Workers & Pages** → **Create** → **Import a repository** → pick this repository.
+2. Project name `dentalog`. Build command `npm run build`. Deploy command `npm run deploy`. Leave the rest as it is.
+3. The first deploy creates the `dentalog` D1 database and sets up the tables and starting numbers.
+4. Worker → **Settings** → **Variables and secrets** → add a **Secret** named `DENTALOG_PASSWORD` with the clinic password.
+
+Every merge to `main` then deploys by itself.
+
+Sign-in: one clinic password. A device stays signed in for 30 days. Changing the password signs every device out. Five wrong tries from one address lock it for 15 minutes.
 
 ## Rules the code follows
 
