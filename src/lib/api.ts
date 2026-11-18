@@ -23,7 +23,16 @@ export type TrashItem = {
 };
 
 export type Clinic = { id: string; name: string; doctorName: string; qualification: string | null; phone: string | null; address: string | null; hoursJson: string; upiId: string | null;
-  email: string | null; website: string | null; settings: import("../../shared/settings").ClinicSettings };
+  email: string | null; website: string | null; settings: import("../../shared/settings").ClinicSettings;
+  /** When each uploaded picture last changed. Missing means the built-in one is used. */
+  images?: Partial<Record<"logo" | "letterhead" | "signature", string>> };
+
+const BUILT_IN = { logo: "/clinic-logo.png", letterhead: "/letterhead.jpg", signature: null } as const;
+/** Where to load the clinic's logo, letterhead or signature from. */
+export function imageUrl(clinic: Clinic | null | undefined, key: "logo" | "letterhead" | "signature"): string | null {
+  const v = clinic?.images?.[key];
+  return v ? `/api/clinic/images/${key}?v=${encodeURIComponent(v)}` : BUILT_IN[key];
+}
 
 export type ApptStatus = "booked" | "arrived" | "in_chair" | "done" | "no_show" | "cancelled";
 export type Appointment = {

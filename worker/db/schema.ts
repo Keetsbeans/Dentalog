@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, index, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, blob, index, uniqueIndex } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
 
 /*
@@ -315,4 +315,20 @@ export const auditLog = sqliteTable(
     detail: text("detail"),
   },
   (t) => [index("audit_entity").on(t.entity, t.entityId)],
+);
+
+/**
+ * The clinic's own pictures: logo, letterhead and signature. Small enough to keep in D1
+ * (the browser shrinks them before upload), so they work before R2 is switched on.
+ */
+export const clinicImages = sqliteTable(
+  "clinic_images",
+  {
+    clinicId: clinicId(),
+    key: text("key", { enum: ["logo", "letterhead", "signature"] }).notNull(),
+    contentType: text("content_type").notNull(),
+    data: blob("data", { mode: "buffer" }).notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (t) => [uniqueIndex("clinic_images_pk").on(t.clinicId, t.key)],
 );

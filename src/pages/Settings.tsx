@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router";
+import { Account, Channels, Holidays, PictureField, Printouts, SheetPreview, YourData } from "./SettingsExtra";
 import { api, type Clinic } from "../lib/api";
 import { useClinic } from "../lib/clinic";
 import { useToast } from "../components/Toast";
@@ -7,8 +9,13 @@ import type { DayKey, Hours } from "../../shared/time";
 import { directions, type Food } from "../../shared/rx";
 import type { ClinicSettings } from "../../shared/settings";
 
-type Tab = "clinic" | "hours" | "prices" | "medicines" | "labs";
-const TABS: [Tab, string][] = [["clinic", "Clinic details"], ["hours", "Hours and visits"], ["prices", "Price list"], ["medicines", "Medicines"], ["labs", "Dental labs"]];
+type Tab = "clinic" | "hours" | "prices" | "medicines" | "labs" | "messages" | "printouts" | "account" | "data";
+const TABS: [Tab, string][] = [
+  ["clinic", "Clinic details"], ["hours", "Hours and holidays"], ["prices", "Price list"], ["medicines", "Medicines"], ["labs", "Dental labs"],
+  ["messages", "Messages"], ["printouts", "Printouts"], ["account", "Account"], ["data", "Your data"],
+];
+/** Tabs that only show things, so there is nothing to save on them. */
+const VIEW_ONLY: Tab[] = ["messages", "account", "data"];
 const DAY_NAME: Record<DayKey, string> = { mon: "Monday", tue: "Tuesday", wed: "Wednesday", thu: "Thursday", fri: "Friday", sat: "Saturday", sun: "Sunday" };
 const WEEK: DayKey[] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 
@@ -26,7 +33,10 @@ function fromClinic(c: Clinic, hours: Hours, settings: ClinicSettings): Draft {
 export function Settings() {
   const { clinic, hours, settings, reload } = useClinic();
   const toast = useToast();
-  const [tab, setTab] = useState<Tab>("clinic");
+  const [params, setParams] = useSearchParams();
+  const tab: Tab = TABS.find(([t]) => t === params.get("tab"))?.[0] ?? "clinic";
+  const setTab = (t: Tab) => setParams({ tab: t }, { replace: true });
+  const [previewDoc, setPreviewDoc] = useState<"rx" | "receipt">("rx");
   const [draft, setDraft] = useState<Draft | null>(null);
   const [dirty, setDirty] = useState(false);
   const [err, setErr] = useState("");
@@ -45,7 +55,7 @@ export function Settings() {
       const S = draft!.settings;
       // Blank rows are dropped rather than refused.
       const clean: ClinicSettings = {
-        services: S.services.map((x, i) => ({ ...x, name: x.name.trim(), paise: toPaise(draft!.prices[i] ?? "") ?? 0 })).filter((x) => x.name),
+        services: S.services.map((x, i) => ({ ...x, name: x.name.trim(), group: x.group?.trim() || undefined, paise: toPaise(draft!.prices[i] ?? "") ?? 0 })).filter((x) => x.name),
         drugs: S.drugs.map((d) => ({ ...d, name: d.name.trim(), generic: d.generic.trim(), dose: d.dose.trim().toUpperCase() })).filter((d) => d.name),
         sets: Object.fromEntries(Object.entries(S.sets).map(([k, v]) => [k.trim(), v.map((x) => x.trim()).filter(Boolean)] as const).filter(([k]) => k)),
         visitTypes: S.visitTypes.map((v) => ({ ...v, name: v.name.trim() })).filter((v) => v.name),
@@ -54,6 +64,8 @@ export function Settings() {
         templates: S.templates,
         soonMinutes: S.soonMinutes,
         reviewLink: S.reviewLink,
+        holidays: S.holidays,
+        print: S.print,
       };
       await api("/clinic", { method: "PUT", body: JSON.stringify({ ...draft!.details, hours: draft!.hours, settings: clean }) });
       await reload(); setDirty(false);
@@ -94,8 +106,29 @@ export function Settings() {
             <label className="field">Website<input className="input" value={D.website ?? ""} onChange={(e) => det("website", e.target.value)} /></label>
             <label className="field">UPI ID (printed on receipts)<input className="input" value={D.upiId ?? ""} onChange={(e) => det("upiId", e.target.value)} placeholder="name@okhdfcbank" /></label>
           </div>
-          <p className="note">The printed letterhead is the image you sent. To change it, send me the new design and I’ll swap it in.</p>
         </section>
+      )}
+      {tab === "clinic" && (
+        <div className="visit-grid clinic-pics">
+          <section className="card stack">
+            <h2>Logo</h2>
+            <PictureField kind="logo" hint="Shown next to your clinic name in the menu. A square picture works best." />
+            <h2>Letterhead</h2>
+            <PictureField kind="letterhead" hint="Your heading as a PDF or picture. Upload “Prescription Heading” here to replace it." />
+            <p className="muted">Spacing, signature, paper size and what to show are under <button type="button" className="link-btn inline" onClick={() => setTab("printouts")}>Printouts</button>.</p>
+          </section>
+          <section className="card stack">
+            <div className="card-head">
+              <h2>Letterhead preview</h2>
+              <div className="seg small" role="group" aria-label="Which printout">
+                <button type="button" aria-pressed={previewDoc === "rx"} onClick={() => setPreviewDoc("rx")}>Prescription</button>
+                <button type="button" aria-pressed={previewDoc === "receipt"} onClick={() => setPreviewDoc("receipt")}>Receipt</button>
+              </div>
+            </div>
+            <SheetPreview clinic={clinic} layout={draft.settings.print} doc={previewDoc} />
+            <a className="btn" href="/print/rx/test" target="_blank" rel="noopener noreferrer">Open full size</a>
+          </section>
+        </div>
       )}
 
       {tab === "hours" && (
@@ -134,15 +167,19 @@ export function Settings() {
             ))}
             <button type="button" className="link-btn" onClick={() => st({ visitTypes: [...draft.settings.visitTypes, { name: "", minutes: 30 }] })}>+ Add visit type</button>
           </section>
+          <Holidays list={draft.settings.holidays} onChange={(holidays) => st({ holidays })} />
         </div>
       )}
 
       {tab === "prices" && (
         <section className="card stack">
-          <p className="muted">These fill in when you make a bill, and you can still change them there. No GST is added.</p>
+          <p className="muted">These fill in when you make a bill, and you can still change them there. No GST is added. Groups (like Endodontics or Prosthodontics) keep the list tidy.</p>
+          <div className="bill-line price-head muted" aria-hidden="true"><span className="grow">Service</span><span className="group">Group</span><span className="amt right">Price (₹)</span><span className="icon-pad" /></div>
+          <datalist id="price-groups">{[...new Set(["Consultation", "Preventive", "Restorative", "Endodontics", "Periodontics", "Prosthodontics", "Surgery", "Orthodontics", "Implants", "Cosmetic", ...draft.settings.services.map((s) => s.group ?? "").filter(Boolean)])].map((g) => <option key={g} value={g} />)}</datalist>
           {draft.settings.services.map((x, i) => (
             <div key={i} className="bill-line">
               <label className="field grow"><span className="sr-only">Service</span><input className="input" value={x.name} onChange={(e) => st({ services: draft.settings.services.map((y, n) => n === i ? { ...y, name: e.target.value } : y) })} /></label>
+              <label className="field group"><span className="sr-only">Group</span><input className="input" list="price-groups" value={x.group ?? ""} placeholder="Group" onChange={(e) => st({ services: draft.settings.services.map((y, n) => n === i ? { ...y, group: e.target.value } : y) })} /></label>
               <label className="field amt"><span className="sr-only">Price in rupees</span><input className="input nums right" inputMode="decimal" value={draft.prices[i] ?? ""} placeholder="₹" onChange={(e) => up({ prices: draft.prices.map((p, n) => n === i ? e.target.value : p) })} /></label>
               <button type="button" className="icon-btn" aria-label={`Remove ${x.name}`} onClick={() => up({ settings: { ...draft.settings, services: draft.settings.services.filter((_, n) => n !== i) }, prices: draft.prices.filter((_, n) => n !== i) })}>×</button>
             </div>
@@ -219,7 +256,11 @@ export function Settings() {
           <p className="muted">Separated by commas. These are the quick picks on a new lab order.</p>
         </section>
       )}
-      {dirty && <div className="save-bar"><span>Unsaved changes</span><button type="button" className="btn primary" disabled={busy} onClick={save}>{busy ? "Saving…" : "Save changes"}</button></div>}
+      {tab === "messages" && <Channels />}
+      {tab === "printouts" && <Printouts layout={draft.settings.print} onChange={(print) => st({ print })} />}
+      {tab === "account" && <Account />}
+      {tab === "data" && <YourData />}
+      {dirty && !VIEW_ONLY.includes(tab) && <div className="save-bar"><span>Unsaved changes</span><button type="button" className="btn primary" disabled={busy} onClick={save}>{busy ? "Saving…" : "Save changes"}</button></div>}
     </>
   );
 }

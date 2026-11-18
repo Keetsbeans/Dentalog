@@ -3,7 +3,7 @@ import { drizzle } from "drizzle-orm/d1";
 import type { Context } from "hono";
 import * as s from "./db/schema";
 import { CLINIC_ID, type Env } from "./env";
-import { addDays, istToUtc, todayIst, weekday, toMinutes, type Hours } from "../shared/time";
+import { addDays, hoursOn, istToUtc, todayIst, toMinutes, type Hours } from "../shared/time";
 import { rupees } from "../shared/money";
 import { readSettings } from "../shared/settings";
 import { PLANS, sittings, type PlanName } from "../shared/teeth";
@@ -127,7 +127,7 @@ export async function today(c: C) {
   const week: TodayData["week"] = [];
   for (let i = 0; i < 7; i++) {
     const dd = addDays(day, i);
-    const h = hours[weekday(dd)];
+    const h = hoursOn(hours, dd, settings.holidays);
     const ds = istToUtc(dd, "00:00"), de = istToUtc(addDays(dd, 1), "00:00");
     const list = weekAppts.filter((a) => a.startsAt >= ds && a.startsAt < de && a.status !== "cancelled");
     week.push({ day: dd, visits: list.length, bookedMin: list.reduce((a, x) => a + x.minutes, 0), openMin: h ? toMinutes(h[1]) - toMinutes(h[0]) : 0 });

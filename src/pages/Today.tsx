@@ -4,12 +4,12 @@ import { api, type Appointment } from "../lib/api";
 import { useClinic } from "../lib/clinic";
 import { useToast } from "../components/Toast";
 import { ApptDialog, BookDialog, dayLabel, NEXT_STEP, patientReply, setStatus, STATUS_LABEL, timeRange } from "../components/Appointments";
-import { addDays, fromMinutes, label12, todayIst, toMinutes, utcToIst, weekday } from "../../shared/time";
+import { addDays, fromMinutes, hoursOn, label12, todayIst, toMinutes, utcToIst, weekday } from "../../shared/time";
 import { rupees } from "../../shared/money";
 import type { TodayData } from "../../worker/today";
 
 export function Today() {
-  const { hours } = useClinic();
+  const { hours, settings } = useClinic();
   const toast = useToast();
   const day = todayIst();
   const [appts, setAppts] = useState<Appointment[] | null>(null);
@@ -28,7 +28,7 @@ export function Today() {
   }, [day]);
   useEffect(() => { load(); }, [load]);
 
-  const h = hours[weekday(day)];
+  const h = hoursOn(hours, day, settings.holidays);
   const live = appts?.filter((a) => a.status !== "cancelled") ?? [];
   const count = (st: Appointment["status"]) => live.filter((a) => a.status === st).length;
   const seen = count("done"), here = count("arrived") + count("in_chair"), toCome = count("booked");
