@@ -14,6 +14,7 @@ import { directions, quantity, type Food } from "../shared/rx";
 import { findDrug, penicillinAllergy } from "../shared/drugs";
 import { billTotal, PAY_MODES, type PayMode } from "../shared/services";
 import { amountInWords, rupees } from "../shared/money";
+import { buildReport } from "./reports";
 
 const app = new Hono<{ Bindings: Env }>().basePath("/api");
 const db = (env: Env) => drizzle(env.DB, { schema: s });
@@ -71,6 +72,11 @@ app.put("/clinic", async (c) => {
 type LabStatus = "sent" | "received" | "fitted";
 const LAB_STATUSES: LabStatus[] = ["sent", "received", "fitted"];
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+app.get("/reports", async (c) => {
+  const r = await buildReport(c.env, c.req.query("from") ?? "", c.req.query("to") ?? "");
+  return typeof r === "string" ? c.json({ error: r }, 400) : c.json(r);
+});
 
 app.get("/lab-orders", async (c) => {
   const rows = await db(c.env)
