@@ -85,6 +85,8 @@ export async function me(c: Context<{ Bindings: Env }>) {
 export async function requireSession(c: Context<{ Bindings: Env }>, next: Next) {
   const path = new URL(c.req.url).pathname;
   if (path === "/api/health" || path === "/api/login" || path === "/api/logout" || path === "/api/me") return next();
+  // The patient's own appointment link has no sign-in; its random token is the key.
+  if (path.startsWith("/api/public/")) return next();
   if (!(await sessionValid(c.env, getCookie(c, COOKIE)))) return c.json({ error: "Please sign in again." }, 401);
   return next();
 }

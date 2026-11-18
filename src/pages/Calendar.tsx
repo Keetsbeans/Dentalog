@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, type Appointment } from "../lib/api";
 import { useClinic } from "../lib/clinic";
 import { useToast } from "../components/Toast";
-import { ApptDialog, BookDialog, dayLabel, STATUS_LABEL } from "../components/Appointments";
+import { ApptDialog, BookDialog, dayLabel, patientReply, REPLY_LABEL, STATUS_LABEL } from "../components/Appointments";
 import { addDays, fromMinutes, label12, slots, todayIst, toMinutes, utcToIst, weekday, weekStart, type Hours } from "../../shared/time";
 
 const ROW = 56; // px per 30 minutes
@@ -127,10 +127,11 @@ export function Calendar() {
                   return (
                     <button type="button" key={a.id} className={`cal-appt s-${a.status}${a.squeezedIn ? " squeezed" : ""}`}
                       style={{ top: ((m - start) / 30) * ROW + 2, height: h, left: `calc(${(lane / of) * 100}% + 4px)`, width: `calc(${100 / of}% - 8px)` }}
-                      aria-label={`${a.patient.name}, ${a.visitType}, ${label12(utcToIst(a.startsAt).time)}, ${STATUS_LABEL[a.status]}`}
+                      aria-label={`${a.patient.name}, ${a.visitType}, ${label12(utcToIst(a.startsAt).time)}, ${STATUS_LABEL[a.status]}${patientReply(a) ? `, ${REPLY_LABEL[patientReply(a)!]}` : ""}`}
                       onClick={() => setOpen(a)}>
                       <b>{a.patient.name}</b>
                       {h > 40 && <span>{label12(utcToIst(a.startsAt).time)} · {a.visitType}{a.patient.alerts.length ? " · ⚠" : ""}</span>}
+                      {patientReply(a) && <i className={`cal-reply ${patientReply(a)}`} title={REPLY_LABEL[patientReply(a)!]}>{patientReply(a) === "confirmed" ? "✓" : "?"}</i>}
                     </button>
                   );
                 })}
@@ -142,7 +143,8 @@ export function Calendar() {
       </div>
       <p className="muted legend">
         <span className="pill s-booked">Booked</span> <span className="pill s-arrived">Arrived</span> <span className="pill s-in_chair">In chair</span>{" "}
-        <span className="pill s-done">Done</span> <span className="pill s-no_show">No-show</span> · Tap an empty slot to book.
+        <span className="pill s-done">Done</span> <span className="pill s-no_show">No-show</span>{" "}
+        <i className="cal-reply confirmed legend">✓</i> confirmed from their link <i className="cal-reply reschedule legend">?</i> wants another time · Tap an empty slot to book.
       </p>
 
       {book && <BookDialog day={book.day} time={book.time} onClose={() => setBook(null)} onSaved={(msg) => { setBook(null); toast({ title: msg }); load(); }} />}

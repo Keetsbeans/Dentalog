@@ -6,19 +6,27 @@ import { CLINIC_ID, type Env } from "./env";
 import { addDays, istToUtc, label12, todayIst, utcToIst } from "../shared/time";
 import { rupees } from "../shared/money";
 import type { MessageKind } from "../shared/messages";
+import { readSettings } from "../shared/settings";
+import { confirmToken } from "./public";
 
 type C = Context<{ Bindings: Env }>;
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
-const KINDS: MessageKind[] = ["reminder", "recall", "balance", "lab_ready"];
+const KINDS: MessageKind[] = ["reminder", "soon", "recall", "balance", "lab_ready", "care", "review"];
 
 export type QueuePatient = { id: string; name: string; code: string; phone: string; phoneCc: string; consent: boolean };
 export type QueueItem = {
   kind: MessageKind; refId: string; patient: QueuePatient;
   vars: Record<string, string>; detail: string; sentAt: string | null;
+  /** Same-day reminders: when it should go out. */
+  dueAt?: string;
+  /** Appointments: what the patient did from their link. */
+  reply?: "confirmed" | "reschedule" | null;
 };
 
 const fmt = (day: string, o: Intl.DateTimeFormatOptions) =>
   new Intl.DateTimeFormat("en-IN", { ...o, timeZone: "UTC" }).format(new Date(`${day}T00:00:00Z`));
+/** "Scaling" → "scaling", but "RCT sitting" keeps RCT. */
+const visitWords = (v: string) => v.split(/\s+/).map((w) => (/^[A-Z0-9]{2,}$/.test(w) ? w : w.toLowerCase())).join(" ");
 const ago = (days: number) => new Date(Date.now() - days * 86_400_000).toISOString();
 
 /**
@@ -33,7 +41,10 @@ export async function queue(c: C) {
   const pCols = { id: s.patients.id, name: s.patients.name, code: s.patients.code, phone: s.patients.phone, phoneCc: s.patients.phoneCc, consent: s.patients.whatsappConsent };
   const nowIso = new Date().toISOString();
 
-  const [appts, labs, lastVisits, upcoming, invoices, paid, sent] = await Promise.all([
+  const [clinic] = await d.select().from(s.clinics).where(eq(s.clinics.id, CLINIC_ID));
+  const settings = readSettings(clinic?.settingsJson);
+  const origin = new URL(c.req.url).origin;
+  const [appts, labs, lastVisits, upcoming, invoices, paid, sent, todays] = await Promise.all([
     d.select({ a: s.appointments, p: pCols }).from(s.appointments).innerJoin(s.patients, eq(s.patients.id, s.appointments.patientId))
       .where(and(eq(s.appointments.clinicId, CLINIC_ID), isNull(s.appointments.deletedAt), isNull(s.patients.deletedAt), eq(s.appointments.status, "booked"),
         gte(s.appointments.startsAt, istToUtc(day, "00:00")), lt(s.appointments.startsAt, istToUtc(addDays(day, 1), "00:00"))))
@@ -49,8 +60,15 @@ export async function queue(c: C) {
     d.select({ invoiceId: s.receipts.invoiceId, amount: s.receipts.amountPaise }).from(s.receipts)
       .where(and(eq(s.receipts.clinicId, CLINIC_ID), isNull(s.receipts.deletedAt))),
     d.select({ kind: s.messages.kind, refId: s.messages.refId, at: s.messages.createdAt }).from(s.messages)
-      .where(and(eq(s.messages.clinicId, CLINIC_ID), gte(s.messages.createdAt, ago(400)))).orderBy(desc(s.messages.createdAt)),
+      .where(and(eq(s.messages.clinicId, CLINIC_ID), eq(s.messages.direction, "out"), gte(s.messages.createdAt, ago(400)))).orderBy(desc(s.messages.createdAt)),
+    d.select({ a: s.appointments, p: pCols }).from(s.appointments).innerJoin(s.patients, eq(s.patients.id, s.appointments.patientId))
+      .where(and(eq(s.appointments.clinicId, CLINIC_ID), isNull(s.appointments.deletedAt), isNull(s.patients.deletedAt), eq(s.appointments.status, "booked"),
+        gte(s.appointments.startsAt, nowIso), lt(s.appointments.startsAt, istToUtc(addDays(today, 1), "00:00"))))
+      .orderBy(s.appointments.startsAt),
   ]);
+  const reply = (a: typeof s.appointments.$inferSelect): QueueItem["reply"] =>
+    a.rescheduleAt && (!a.confirmedAt || a.rescheduleAt > a.confirmedAt) ? "reschedule" : a.confirmedAt ? "confirmed" : null;
+  const linkFor = async (a: typeof s.appointments.$inferSelect) => `${origin}/c/${await confirmToken(c.env, a.id, a.confirmToken)}`;
 
   // Latest send for each kind + item. Recalls and balance nudges count as "sent" only for a while.
   const lastSent = new Map<string, string>();
@@ -62,10 +80,16 @@ export async function queue(c: C) {
 
   const items: QueueItem[] = [];
   const dayText = fmt(day, { weekday: "long", day: "numeric", month: "long" });
+  for (const { a, p } of todays) {
+    const time = label12(utcToIst(a.startsAt).time);
+    const dueAt = new Date(new Date(a.startsAt).getTime() - settings.soonMinutes * 60_000).toISOString();
+    items.push({ kind: "soon", refId: a.id, patient: p, vars: { time, visit: visitWords(a.visitType), link: await linkFor(a) },
+      detail: `${time} · ${a.visitType}`, sentAt: sentSince("soon", a.id), dueAt, reply: reply(a) });
+  }
   for (const { a, p } of appts) {
     const time = label12(utcToIst(a.startsAt).time);
-    items.push({ kind: "reminder", refId: a.id, patient: p, vars: { day: dayText, time, visit: a.visitType.toLowerCase() },
-      detail: `${time} · ${a.visitType}`, sentAt: sentSince("reminder", a.id) });
+    items.push({ kind: "reminder", refId: a.id, patient: p, vars: { day: dayText, time, visit: visitWords(a.visitType), link: await linkFor(a) },
+      detail: `${time} · ${a.visitType}`, sentAt: sentSince("reminder", a.id), reply: reply(a) });
   }
 
   for (const { o, p } of labs) {
@@ -119,12 +143,13 @@ export async function logSent(c: C) {
   return c.json({ id: row.id, createdAt: row.createdAt });
 }
 
-/** The most recent messages sent, newest first. */
+/** Messages both ways (sent from Dentalog, and what patients did from their link), newest first. */
 export async function sentLog(c: C) {
   const d = drizzle(c.env.DB, { schema: s });
-  const rows = await d.select({ m: s.messages, p: { id: s.patients.id, name: s.patients.name, code: s.patients.code } })
+  const pid = c.req.query("patientId");
+  const rows = await d.select({ m: s.messages, p: { id: s.patients.id, name: s.patients.name, code: s.patients.code, phone: s.patients.phone, phoneCc: s.patients.phoneCc, consent: s.patients.whatsappConsent } })
     .from(s.messages).innerJoin(s.patients, eq(s.patients.id, s.messages.patientId))
-    .where(and(eq(s.messages.clinicId, CLINIC_ID), isNull(s.patients.deletedAt)))
-    .orderBy(desc(s.messages.createdAt)).limit(200);
+    .where(and(eq(s.messages.clinicId, CLINIC_ID), isNull(s.patients.deletedAt), pid ? eq(s.messages.patientId, pid) : undefined))
+    .orderBy(desc(s.messages.createdAt)).limit(pid ? 500 : 300);
   return c.json(rows.map(({ m, p }) => ({ ...m, patient: p })));
 }

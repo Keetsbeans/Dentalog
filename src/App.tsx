@@ -1,4 +1,4 @@
-import { Route, Routes } from "react-router";
+import { Route, Routes, useLocation } from "react-router";
 import { Shell } from "./components/Shell";
 import { ToastProvider } from "./components/Toast";
 import { ClinicProvider } from "./lib/clinic";
@@ -17,8 +17,11 @@ import { Trash } from "./pages/Trash";
 import { ComingNext } from "./pages/ComingNext";
 import { Reports } from "./pages/Reports";
 import { Messages } from "./pages/Messages";
+import { Confirm } from "./pages/Confirm";
 
 export function App() {
+  // The patient's appointment link needs no sign-in.
+  if (useLocation().pathname.startsWith("/c/")) return <Routes><Route path="/c/:token" element={<Confirm />} /></Routes>;
   return (
     <AuthGate>
     <ClinicProvider>

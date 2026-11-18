@@ -28,6 +28,14 @@ export function dayLabel(day: string, opts: Intl.DateTimeFormatOptions = { weekd
   return new Intl.DateTimeFormat("en-IN", { ...opts, timeZone: "UTC" }).format(new Date(`${day}T00:00:00Z`));
 }
 
+/** What the patient did from their appointment link, if anything. */
+export function patientReply(a: Pick<Appointment, "confirmedAt" | "rescheduleAt" | "status">): "confirmed" | "reschedule" | null {
+  if (a.status !== "booked") return null;
+  if (a.rescheduleAt && (!a.confirmedAt || a.rescheduleAt > a.confirmedAt)) return "reschedule";
+  return a.confirmedAt ? "confirmed" : null;
+}
+export const REPLY_LABEL = { confirmed: "Patient confirmed", reschedule: "Wants another time" } as const;
+
 export async function setStatus(a: Appointment, status: ApptStatus) {
   await api(`/appointments/${a.id}`, { method: "PATCH", body: JSON.stringify({ status }) });
 }
@@ -207,7 +215,7 @@ export function ApptDialog({ appt, onClose, onChanged }: { appt: Appointment; on
         <dl className="facts">
           <dt>Visit</dt><dd>{appt.visitType}{appt.squeezedIn ? " · squeezed in" : ""}</dd>
           <dt>When</dt><dd>{dayLabel(day, { weekday: "long", day: "numeric", month: "short" })}, {timeRange(appt)}</dd>
-          <dt>Status</dt><dd><span className={`pill s-${appt.status}`}>{STATUS_LABEL[appt.status]}</span></dd>
+          <dt>Status</dt><dd><span className={`pill s-${appt.status}`}>{STATUS_LABEL[appt.status]}</span>{patientReply(appt) && <> <span className={`pill ${patientReply(appt) === "confirmed" ? "s-ok" : "s-warn"}`}>{REPLY_LABEL[patientReply(appt)!]}</span></>}</dd>
           {appt.notes && <><dt>Note</dt><dd>{appt.notes}</dd></>}
         </dl>
         {err && <p className="error" role="alert">{err}</p>}

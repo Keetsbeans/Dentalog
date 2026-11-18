@@ -3,7 +3,7 @@ import { Link } from "react-router";
 import { api, type Appointment } from "../lib/api";
 import { useClinic } from "../lib/clinic";
 import { useToast } from "../components/Toast";
-import { ApptDialog, BookDialog, dayLabel, NEXT_STEP, setStatus, STATUS_LABEL, timeRange } from "../components/Appointments";
+import { ApptDialog, BookDialog, dayLabel, NEXT_STEP, patientReply, setStatus, STATUS_LABEL, timeRange } from "../components/Appointments";
 import { addDays, fromMinutes, label12, todayIst, toMinutes, utcToIst, weekday } from "../../shared/time";
 import { rupees } from "../../shared/money";
 import type { TodayData } from "../../worker/today";
@@ -114,7 +114,10 @@ export function Today() {
                   <span className="q-sub">{a.visitType}{a.notes ? ` · ${a.notes}` : ""}{a.squeezedIn ? " · squeezed in" : ""}</span>
                   {a.patient.alerts.length > 0 && <span>{a.patient.alerts.map((x) => <span key={x} className="tag alert">{x}</span>)}</span>}
                 </button>
-                <span className={`pill s-${a.status}`}>{STATUS_LABEL[a.status]}</span>
+                <span className="q-pills">
+                  <span className={`pill s-${a.status}`}>{STATUS_LABEL[a.status]}</span>
+                  {patientReply(a) && <span className={`pill ${patientReply(a) === "confirmed" ? "s-ok" : "s-warn"}`}>{patientReply(a) === "confirmed" ? "Confirmed" : "Wants another time"}</span>}
+                </span>
                 {next ? <button type="button" className="btn small primary" onClick={() => advance(a)}>{next[1]}</button> : <span />}
               </li>
             );

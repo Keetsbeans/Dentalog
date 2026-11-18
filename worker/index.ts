@@ -19,6 +19,7 @@ import { buildReport } from "./reports";
 import { logSent, queue, sentLog } from "./messages";
 import { getTeeth, putTooth } from "./teeth";
 import { today } from "./today";
+import { publicGet, publicPost } from "./public";
 
 const app = new Hono<{ Bindings: Env }>().basePath("/api");
 const db = (env: Env) => drizzle(env.DB, { schema: s });
@@ -78,6 +79,8 @@ type LabStatus = "sent" | "received" | "fitted";
 const LAB_STATUSES: LabStatus[] = ["sent", "received", "fitted"];
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 
+app.get("/public/c/:token", publicGet);
+app.post("/public/c/:token", publicPost);
 app.get("/today", today);
 app.get("/messages/queue", queue);
 app.get("/messages", sentLog);
@@ -539,7 +542,7 @@ async function apptRows(env: Env, from: string, to: string) {
       gte(s.appointments.startsAt, from), lt(s.appointments.startsAt, to),
     ))
     .orderBy(asc(s.appointments.startsAt));
-  return rows.map(({ a, p }) => ({
+  return rows.map(({ a: { confirmToken: _t, ...a }, p }) => ({
     ...a,
     patient: { id: p.id, name: p.name, code: p.code, phone: p.phone, phoneCc: p.phoneCc, alerts: JSON.parse(p.alertsJson) as string[] },
   }));

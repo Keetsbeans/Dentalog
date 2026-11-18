@@ -28,7 +28,7 @@ export type Clinic = { id: string; name: string; doctorName: string; qualificati
 export type ApptStatus = "booked" | "arrived" | "in_chair" | "done" | "no_show" | "cancelled";
 export type Appointment = {
   id: string; startsAt: string; minutes: number; visitType: string; status: ApptStatus;
-  squeezedIn: boolean; notes: string | null;
+  squeezedIn: boolean; notes: string | null; confirmedAt: string | null; rescheduleAt: string | null;
   patient: { id: string; name: string; code: string; phone: string; phoneCc: string; alerts: string[] };
 };
 
