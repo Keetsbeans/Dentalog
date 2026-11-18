@@ -355,3 +355,61 @@ th.num, td.num { text-align: right; }
   .msg-row { grid-template-columns: 1fr; gap: 6px; }
   .msg-actions { justify-content: flex-start; }
 }
+
+/* Tooth chart */
+.chart-layout { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; margin-bottom: 16px; }
+.chart-main { flex: 999 1 600px; min-width: 0; display: flex; flex-direction: column; gap: 16px; }
+.chart-side { flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 16px; }
+.card-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 12px; margin-bottom: 12px; }
+.card-head h2, .chart-side h2 { margin: 0; font-size: 18px; }
+.card-head > div:not(.seg) { display: flex; flex-direction: column; gap: 2px; }
+.seg.small button { min-height: 36px; padding: 0 14px; font-size: 13px; }
+.tooth-scroll { overflow-x: auto; margin: 0 -4px; padding: 4px; }
+.tooth-grid { min-width: 600px; display: flex; flex-direction: column; gap: 6px; }
+.tooth-grid.child { min-width: 420px; }
+.tooth-side { display: flex; justify-content: space-between; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; color: var(--muted); }
+.tooth-row { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 6px; }
+.tooth-mid { height: 1px; background: #CBD5D9; margin: 4px 0; }
+.tooth { height: 60px; border-radius: 10px; padding: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; cursor: pointer; font: inherit; }
+.tooth b { font-size: 14px; }
+.tooth span { font-size: 11px; font-weight: 700; }
+.tooth.on { outline: 3px solid var(--ink); outline-offset: 1px; }
+.tooth:focus-visible { outline: 3px solid var(--teal); outline-offset: 1px; }
+.compact .tooth { height: 44px; }
+.compact .tooth-grid { min-width: 470px; }
+.compact .tooth-row { gap: 4px; }
+.compact .tooth b { font-size: 13px; }
+.compact .tooth-grid.child { min-width: 360px; }
+.look-healthy { background: #fff; border: 1px solid #CBD5D9; color: var(--ink); }
+.look-problem { background: #FDECEA; border: 1.5px solid #B42318; color: #7A1A12; }
+.look-planned { background: #E8EEFD; border: 1.5px solid #1D4ED8; color: #1E3A8A; }
+.look-done { background: #E7F5EC; border: 1.5px solid #15803D; color: #14532D; }
+.look-missing { background: #EEF2F3; border: 1.5px dashed #6B7A81; color: var(--muted); }
+.tooth-legend { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 12px; font-size: 12px; color: var(--ink-2); align-items: center; }
+.tooth-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.tooth-legend i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.plan-table { min-width: 560px; }
+.plan-table tr.on td { background: var(--bg); }
+.plan-table .link-btn { padding: 0; font-size: 14px; }
+.plan-total { margin: 12px 0 0; font-size: 14px; color: var(--ink-2); }
+.tooth-panel { border: 2px solid var(--ink); display: flex; flex-direction: column; gap: 12px; }
+.tooth-panel .card-head { margin-bottom: 0; align-items: baseline; }
+.sittings { background: var(--bg); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.sittings-head { display: flex; justify-content: space-between; gap: 8px; font-size: 14px; }
+.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 14px; color: var(--muted); }
+.steps li { display: flex; align-items: center; gap: 10px; }
+.steps li.done { color: var(--ink-2); }
+.steps li.next { color: var(--ink); font-weight: 700; }
+.steps .dot { width: 24px; height: 24px; flex: none; border-radius: 999px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; background: #fff; border: 1px solid #CBD5D9; }
+.steps .done .dot { background: #15803D; border-color: #15803D; color: #fff; }
+.steps .next .dot { border: 2px solid #1D4ED8; color: #1D4ED8; }
+.row-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.ok { color: #15803D; font-size: 14px; }
+.history { list-style: none; margin: 8px 0 0; padding: 0; font-size: 14px; }
+.history li { display: flex; flex-direction: column; gap: 2px; padding: 8px 0; border-bottom: 1px solid var(--line-soft); }
+.history li:last-child { border-bottom: 0; }
+.tooth-pick { margin-top: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); display: flex; flex-direction: column; gap: 8px; }
+.input-with-btn { display: flex; gap: 8px; }
+.input-with-btn .input { flex: 1; min-width: 0; }
+.input-with-btn .btn { flex: none; }
+.tooth-pick .card-head { margin-bottom: 0; font-weight: 400; }

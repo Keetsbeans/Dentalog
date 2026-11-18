@@ -92,6 +92,8 @@ export async function purgeOne(db: Db, env: { FILES?: R2Bucket }, clinicId: stri
     for (const i of invoiceIds) await db.delete(s.invoiceLines).where(eq(s.invoiceLines.invoiceId, i));
     await db.delete(s.invoices).where(eq(s.invoices.patientId, id));
     await db.delete(s.messages).where(eq(s.messages.patientId, id));
+    await db.delete(s.teeth).where(eq(s.teeth.patientId, id));
+    await db.delete(s.toothEvents).where(eq(s.toothEvents.patientId, id));
     await db.delete(s.labOrders).where(eq(s.labOrders.patientId, id));
     await db.delete(s.visits).where(eq(s.visits.patientId, id));
     await db.delete(s.appointments).where(eq(s.appointments.patientId, id));

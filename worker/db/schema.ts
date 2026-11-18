@@ -186,6 +186,37 @@ export const labOrders = sqliteTable("lab_orders", {
   ...softDelete,
 });
 
+/** The tooth chart: one row per tooth that is not plain healthy (FDI number). */
+export const teeth = sqliteTable(
+  "teeth",
+  {
+    clinicId: clinicId(),
+    patientId: text("patient_id").notNull().references(() => patients.id),
+    tooth: integer("tooth").notNull(),
+    condition: text("condition").notNull().default("Healthy"),
+    /** Planned treatment (Filling, RCT, Crown, Extraction, Implant) and sittings done so far. */
+    plan: text("plan"),
+    done: integer("done").notNull().default(0),
+    billed: integer("billed", { mode: "boolean" }).notNull().default(false),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (t) => [uniqueIndex("teeth_patient_tooth").on(t.patientId, t.tooth)],
+);
+
+/** What changed on each tooth, for the history beside the chart. */
+export const toothEvents = sqliteTable(
+  "tooth_events",
+  {
+    id: id(),
+    clinicId: clinicId(),
+    patientId: text("patient_id").notNull().references(() => patients.id),
+    tooth: integer("tooth").notNull(),
+    text: text("text").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("tooth_events_patient").on(t.patientId)],
+);
+
 /** WhatsApp messages the clinic sent (opened in WhatsApp from Dentalog). */
 export const messages = sqliteTable(
   "messages",

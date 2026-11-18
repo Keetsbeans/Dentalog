@@ -16,6 +16,7 @@ import { billTotal, PAY_MODES, type PayMode } from "../shared/services";
 import { amountInWords, rupees } from "../shared/money";
 import { buildReport } from "./reports";
 import { logSent, queue, sentLog } from "./messages";
+import { getTeeth, putTooth } from "./teeth";
 
 const app = new Hono<{ Bindings: Env }>().basePath("/api");
 const db = (env: Env) => drizzle(env.DB, { schema: s });
@@ -185,6 +186,9 @@ app.post("/patients", async (c) => {
 
 // ---------- Patient record ----------
 const parsePatient = (p: typeof s.patients.$inferSelect) => ({ ...p, alerts: JSON.parse(p.alertsJson) as string[] });
+
+app.get("/patients/:id/teeth", getTeeth);
+app.put("/patients/:id/teeth/:n", putTooth);
 
 app.get("/patients/:id", async (c) => {
   const d = db(c.env);
