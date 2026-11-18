@@ -227,3 +227,43 @@ a.list-row:hover b { color: var(--teal); }
   .a4 { box-shadow: none; width: 210mm; height: 297mm; }
   * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
+
+/* ---------- Billing ---------- */
+.dialog.wide { max-width: 600px; }
+.due { color: var(--red); font-weight: 700; }
+.toolbar { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+.toolbar .search { margin: 0; flex: 1 1 240px; }
+tr.clickable { cursor: pointer; }
+tr.clickable:hover td { background: var(--bg); }
+.plain-btn { border: 0; background: none; padding: 0; font: inherit; color: inherit; cursor: pointer; text-align: left; }
+.wide-btn { width: 100%; }
+.link-btn.inline { padding: 0 4px; min-height: 0; font-size: 13px; }
+.bill-lines { display: flex; flex-direction: column; gap: 8px; }
+.bill-line { display: flex; gap: 8px; align-items: center; }
+.bill-line .grow { flex: 1; min-width: 0; }
+.bill-line .tooth { width: 80px; flex: none; }
+.bill-line .amt { width: 110px; flex: none; }
+.icon-pad { width: 36px; flex: none; }
+.bill-total { display: flex; justify-content: space-between; border-top: 1px solid var(--ink); padding: 10px 44px 0 0; font-size: 18px; }
+.mini { min-width: 0; }
+.mini td { padding: 8px 4px; }
+.mini tr.strong td { font-weight: 700; border-top: 1px solid var(--line); }
+.stat b.due { color: var(--red); }
+h2 .pill { margin-left: 8px; vertical-align: middle; }
+.a4-title { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; color: #33454D; }
+.a4-big { font-size: 28px; font-weight: 700; letter-spacing: 0.06em; color: #12232B; }
+.a4-box { display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 6px 12px; background: #F4F7F8; border-radius: 8px; padding: 12px 14px; }
+.a4-box > span:nth-child(odd) { color: #4E5E66; }
+.a4 .soft { color: #33454D; }
+.a4-received, .a4-balance { display: flex; justify-content: space-between; }
+.a4-received { border-top: 1px solid #12232B; padding-top: 10px; font-size: 19px; font-weight: 700; }
+.a4-received b { font-size: 21px; }
+@container (max-width: 760px) {
+  .bills { min-width: 0; }
+  .bills .hide-sm { display: none; }
+  .bills td, .bills th { padding: 10px 6px; }
+  .bill-line { flex-wrap: wrap; }
+  .bill-line .grow { flex-basis: 100%; }
+  .bill-line .tooth, .bill-line .amt { flex: 1; width: auto; }
+  .stats { grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); }
+}

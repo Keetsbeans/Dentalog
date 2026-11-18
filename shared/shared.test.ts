@@ -81,3 +81,12 @@ describe("India time", () => {
     expect(overlaps("2026-11-17T10:00:00Z", 30, "2026-11-17T10:30:00Z", 30)).toBe(false);
   });
 });
+
+import { billTotal } from "./services";
+describe("bills", () => {
+  it("totals lines and takes off the discount", () => {
+    expect(billTotal([{ amountPaise: 100000 }, { amountPaise: 20000 }], 0)).toBe(120000);
+    expect(billTotal([{ amountPaise: 100000 }], 20000)).toBe(80000);
+    expect(billTotal([{ amountPaise: 100000 }], 200000)).toBe(0);
+  });
+});
