@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { NavLink } from "react-router";
 import { useClinic } from "../lib/clinic";
+import { signOut } from "./AuthGate";
 
 const NAV: [string, string][] = [
   ["Today", "/"], ["Calendar", "/calendar"], ["Patients", "/patients"], ["Billing", "/billing"],
@@ -28,6 +29,7 @@ export function Shell({ children }: { children: ReactNode }) {
             {label}
           </NavLink>
         ))}
+        <button type="button" className="nav-link signout" onClick={signOut}>Sign out</button>
       </nav>
       <main className="main">{children}</main>
     </div>

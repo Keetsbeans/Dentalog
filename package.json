@@ -12,8 +12,8 @@
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
     "db:migrate:local": "wrangler d1 migrations apply dentalog --local",
-    "db:migrate:remote": "wrangler d1 migrations apply dentalog --remote",
-    "deploy": "vite build && wrangler deploy"
+    "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
+    "deploy": "wrangler deploy && wrangler d1 migrations apply DB --remote"
   },
   "dependencies": {
     "drizzle-orm": "0.45.4",

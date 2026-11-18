@@ -2,6 +2,7 @@ import { Route, Routes } from "react-router";
 import { Shell } from "./components/Shell";
 import { ToastProvider } from "./components/Toast";
 import { ClinicProvider } from "./lib/clinic";
+import { AuthGate } from "./components/AuthGate";
 import { Today } from "./pages/Today";
 import { Calendar } from "./pages/Calendar";
 import { Patients } from "./pages/Patients";
@@ -15,6 +16,7 @@ import { ComingNext } from "./pages/ComingNext";
 
 export function App() {
   return (
+    <AuthGate>
     <ClinicProvider>
       <ToastProvider>
         <Routes>
@@ -42,5 +44,6 @@ export function App() {
         </Routes>
       </ToastProvider>
     </ClinicProvider>
+    </AuthGate>
   );
 }

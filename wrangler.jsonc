@@ -7,19 +7,16 @@
     "not_found_handling": "single-page-application",
     "run_worker_first": ["/api/*"]
   },
-  // Patient records. Create with `npx wrangler d1 create dentalog` and paste the id here.
+  // Patient records. No id needed: the first `wrangler deploy` creates the "dentalog" database itself.
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "dentalog",
-      "database_id": "REPLACE_WITH_D1_DATABASE_ID",
       "migrations_dir": "migrations"
     }
   ],
-  // X-rays, photos, consent forms and letterheads. Create with `npx wrangler r2 bucket create dentalog-files`.
-  "r2_buckets": [
-    { "binding": "FILES", "bucket_name": "dentalog-files" }
-  ],
+  // X-rays and photos will live in R2 once uploads are built:
+  // "r2_buckets": [{ "binding": "FILES", "bucket_name": "dentalog-files" }],
   // Every night at 02:00 IST (20:30 UTC): permanently remove items deleted more than 30 days ago.
   "triggers": { "crons": ["30 20 * * *"] },
   "observability": { "enabled": true }
