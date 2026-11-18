@@ -15,6 +15,8 @@ import { Settings } from "./pages/Settings";
 import { LabOrders } from "./pages/LabOrders";
 import { Trash } from "./pages/Trash";
 import { ComingNext } from "./pages/ComingNext";
+import { Reports } from "./pages/Reports";
+import { Messages } from "./pages/Messages";
 
 export function App() {
   return (
@@ -36,8 +38,8 @@ export function App() {
                 <Route path="/recently-deleted" element={<Trash />} />
                 <Route path="/billing" element={<Billing />} />
                 <Route path="/lab-orders" element={<LabOrders />} />
-                <Route path="/reports" element={<ComingNext title="Reports" />} />
-                <Route path="/messages" element={<ComingNext title="Messages" />} />
+                <Route path="/reports" element={<Reports />} />
+                <Route path="/messages" element={<Messages />} />
                 <Route path="/settings" element={<Settings />} />
                 <Route path="*" element={<ComingNext title="Page not found" />} />
               </Routes>

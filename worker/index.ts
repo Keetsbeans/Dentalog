@@ -14,6 +14,8 @@ import { directions, quantity, type Food } from "../shared/rx";
 import { findDrug, penicillinAllergy } from "../shared/drugs";
 import { billTotal, PAY_MODES, type PayMode } from "../shared/services";
 import { amountInWords, rupees } from "../shared/money";
+import { buildReport } from "./reports";
+import { logSent, queue, sentLog } from "./messages";
 
 const app = new Hono<{ Bindings: Env }>().basePath("/api");
 const db = (env: Env) => drizzle(env.DB, { schema: s });
@@ -59,6 +61,7 @@ app.put("/clinic", async (c) => {
     if (st.drugs?.some((d) => !d.name?.trim())) return c.json({ error: "Each medicine needs a name." }, 400);
     try { st.drugs?.forEach((d) => directions(d.dose, d.days, d.food)); } catch (e) { return c.json({ error: (e as Error).message }, 400); }
     if (st.labs?.some((l) => !l.name?.trim() || !(l.days > 0))) return c.json({ error: "Each lab needs a name and usual days." }, 400);
+    if (st.templates && Object.values(st.templates).some((x) => typeof x !== "string" || !x.trim() || x.length > 1000)) return c.json({ error: "Each message needs some wording (up to 1,000 letters)." }, 400);
     set.settingsJson = JSON.stringify(st);
   }
   if (!Object.keys(set).length) return c.json({ error: "Nothing to save." }, 400);
@@ -71,6 +74,15 @@ app.put("/clinic", async (c) => {
 type LabStatus = "sent" | "received" | "fitted";
 const LAB_STATUSES: LabStatus[] = ["sent", "received", "fitted"];
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+app.get("/messages/queue", queue);
+app.get("/messages", sentLog);
+app.post("/messages", logSent);
+
+app.get("/reports", async (c) => {
+  const r = await buildReport(c.env, c.req.query("from") ?? "", c.req.query("to") ?? "");
+  return typeof r === "string" ? c.json({ error: r }, 400) : c.json(r);
+});
 
 app.get("/lab-orders", async (c) => {
   const rows = await db(c.env)

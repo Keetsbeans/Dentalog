@@ -101,3 +101,17 @@ describe("settings", () => {
     expect(s.drugs).toBe(DEFAULT_SETTINGS.drugs);
   });
 });
+
+describe("WhatsApp messages", async () => {
+  const { fill, waLink, DEFAULT_TEMPLATES } = await import("./messages");
+  it("fills a template and tidies missing words", () => {
+    expect(fill("Hello {name}, pay {upi}. – {doctor}", { name: "Anitha", doctor: "Dr S" })).toBe("Hello Anitha, pay. – Dr S");
+    expect(fill(DEFAULT_TEMPLATES.reminder, { name: "A", day: "Thursday", time: "5:30 PM", visit: "scaling", clinic: "Oyster", doctor: "Dr S" }))
+      .toContain("scaling appointment at Oyster on Thursday at 5:30 PM");
+  });
+  it("makes wa.me links for Indian mobiles only", () => {
+    expect(waLink("98400 12345", "Hi there")).toBe("https://wa.me/919840012345?text=Hi%20there");
+    expect(waLink("+91 9840012345", "x")).toBe("https://wa.me/919840012345?text=x");
+    expect(waLink("044 2345678", "x")).toBeNull();
+  });
+});

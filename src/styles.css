@@ -300,3 +300,58 @@ h2 .pill { margin-left: 8px; vertical-align: middle; }
   .visit-grid.wide-left { grid-template-columns: minmax(0, 1fr); }
   .lab-row .amt { width: auto; flex: 1; }
 }
+
+/* Reports */
+.report-stats { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.chart h2, .report-grid h2 { margin: 0 0 4px; font-size: 16px; }
+.chart-head { display: flex; flex-direction: column; gap: 2px; margin-bottom: 12px; min-height: 42px; }
+.chart-plot { position: relative; height: 200px; }
+.chart-grid { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: space-between; pointer-events: none; }
+.chart-grid div { border-top: 1px solid var(--line-soft); height: 0; }
+.chart-grid div:last-child { border-top-color: var(--line); }
+.chart-grid span { position: relative; top: -16px; font-size: 11px; color: var(--muted); }
+.chart-bars { position: absolute; inset: 0; display: flex; align-items: flex-end; gap: 2px; padding-left: 0; }
+.bar-hit { flex: 1 1 0; min-width: 0; height: 100%; border: 0; background: none; padding: 0; display: flex; align-items: flex-end; justify-content: center; cursor: pointer; border-radius: 6px; }
+.bar-hit:hover, .bar-hit.on { background: var(--teal-soft); }
+.bar-hit:focus-visible { outline: 2px solid var(--teal); outline-offset: 1px; }
+.bar { display: block; width: 70%; max-width: 40px; min-height: 0; background: var(--teal); border-radius: 4px 4px 0 0; }
+.chart-x { display: flex; gap: 2px; margin-top: 6px; }
+.chart-x span { flex: 1 1 0; min-width: 0; text-align: center; font-size: 11px; color: var(--muted); white-space: nowrap; overflow: visible; }
+.chart-table { margin-top: 12px; font-size: 14px; }
+.chart-table summary { cursor: pointer; color: var(--teal); font-weight: 700; }
+table.compact { min-width: 0; }
+th.num, td.num { text-align: right; }
+.report-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-top: 16px; }
+.breakdown { list-style: none; padding: 0; margin: 8px 0; display: flex; flex-direction: column; gap: 10px; }
+.breakdown-row { display: flex; justify-content: space-between; gap: 8px; font-size: 14px; }
+.meter { height: 6px; background: var(--line-soft); border-radius: 999px; margin-top: 4px; overflow: hidden; }
+.meter span { display: block; height: 100%; background: var(--teal); border-radius: 999px; }
+.report-big { font-size: 28px; font-weight: 800; margin: 4px 0; }
+.owing { list-style: none; padding: 0; margin: 8px 0 0; font-size: 14px; }
+.owing li { display: flex; gap: 8px; align-items: baseline; padding: 8px 0; border-top: 1px solid var(--line-soft); }
+.owing li b { margin-left: auto; }
+@media (max-width: 640px) { .report-range { display: grid; grid-template-columns: 1fr 1fr; width: 100%; } .report-range button { padding: 0 8px; } }
+
+/* Messages */
+.msg-toolbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 16px; }
+.field.inline { flex-direction: row; align-items: center; gap: 8px; }
+.field.inline .input { width: auto; }
+.msg-section { margin-bottom: 16px; }
+.msg-section h2 { margin: 0 0 4px; font-size: 16px; }
+.msg-row { display: grid; grid-template-columns: 200px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line-soft); }
+.msg-row:last-child { border-bottom: 0; }
+.msg-row.sent .msg-text { color: var(--muted); }
+.msg-who { font-size: 14px; }
+.msg-who a { color: var(--ink); text-decoration: none; }
+.msg-text { margin: 0; font-size: 13px; line-height: 1.5; color: var(--ink-2); white-space: pre-wrap; }
+.msg-edit textarea, .msg-section textarea { height: auto; padding: 10px 12px; line-height: 1.5; font: inherit; font-size: 14px; font-weight: 400; resize: vertical; }
+.msg-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.msg-actions .btn { display: inline-flex; align-items: center; text-decoration: none; }
+.btn.wa { background: #1A7F4B; border-color: #1A7F4B; color: #fff; font-weight: 700; }
+.msg-tpl-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.msg-section .chips { margin: 8px 0; }
+.msg-preview { margin: 4px 0 0; font-size: 13px; line-height: 1.5; background: var(--bg); border-radius: 10px; padding: 10px 12px; }
+@media (max-width: 760px) {
+  .msg-row { grid-template-columns: 1fr; gap: 6px; }
+  .msg-actions { justify-content: flex-start; }
+}
