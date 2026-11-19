@@ -9,7 +9,7 @@ import { audit } from "./trash";
 type C = Context<{ Bindings: Env }>;
 const db = (env: Env) => drizzle(env.DB, { schema: s });
 
-export const IMAGE_KEYS = ["logo", "letterhead", "signature"] as const;
+export const IMAGE_KEYS = ["logo", "letterhead", "receiptHead", "signature"] as const;
 export type ImageKey = (typeof IMAGE_KEYS)[number];
 const isKey = (k: string): k is ImageKey => (IMAGE_KEYS as readonly string[]).includes(k);
 const TYPES = ["image/png", "image/jpeg", "image/webp"];

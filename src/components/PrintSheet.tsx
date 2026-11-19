@@ -8,11 +8,12 @@ import { formatPhone } from "../../shared/phone";
 import type { PrintLayout } from "../../shared/print";
 
 /** The page itself: letterhead (or space for one), body, signature and footer, laid out from Settings → Printouts. */
-function Sheet({ clinic, layout, children, signLeft, footLeft, by }: { clinic: Clinic | null; layout: PrintLayout; children: ReactNode; signLeft: ReactNode; footLeft: string; by?: VisitBundle["doctor"] }) {
+function Sheet({ clinic, layout, children, signLeft, footLeft, by, receipt }: { clinic: Clinic | null; layout: PrintLayout; children: ReactNode; signLeft: ReactNode; footLeft: string; by?: VisitBundle["doctor"]; receipt?: boolean }) {
   // A prescription another doctor signed carries their name; the saved signature image is only the clinic doctor's.
   const doctor = by?.name ?? clinic?.doctorName ?? "";
   const qual = by ? by.qualification : clinic?.qualification;
-  const head = imageUrl(clinic, "letterhead");
+  // Receipts can have their own heading picture; without one they use the letterhead.
+  const head = (receipt && imageUrl(clinic, "receiptHead")) || imageUrl(clinic, "letterhead");
   const sig = layout.signature === "image" && !by ? imageUrl(clinic, "signature") : null;
   const logo = imageUrl(clinic, "logo");
   return (
@@ -99,7 +100,7 @@ export function ReceiptSheet({ data, clinic, layout }: { data: ReceiptData; clin
   const earlier = inv ? inv.receipts.filter((x) => x.receivedAt < r.receivedAt).reduce((a, x) => a + x.amountPaise, 0) : 0;
   const balanceAfter = inv ? inv.totalPaise - earlier - r.amountPaise : 0;
   return (
-    <Sheet clinic={clinic} layout={layout} footLeft="Thank you. Keep this receipt for insurance claims."
+    <Sheet clinic={clinic} layout={layout} footLeft={layout.footer} receipt
       signLeft={layout.show.upi && clinic?.upiId ? <div className="a4-next"><span className="a4-label teal">PAY A BALANCE BY UPI</span><b>{clinic.upiId}</b></div> : <span />}>
       <div className="a4-title">
         <div><span className="a4-big">RECEIPT</span><div>No. <b>{r.number}</b>{inv ? ` · for bill ${inv.number}` : ""}</div></div>

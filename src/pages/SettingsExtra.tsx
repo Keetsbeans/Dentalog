@@ -16,7 +16,7 @@ import { useMe } from "../components/AuthGate";
 
 /* ---------- Pictures: logo, letterhead, signature ---------- */
 
-const PIC_LABEL: Record<PictureKind, string> = { logo: "Logo", letterhead: "Letterhead", signature: "Signature" };
+const PIC_LABEL: Record<PictureKind, string> = { logo: "Logo", letterhead: "Letterhead", receiptHead: "Receipt heading", signature: "Signature" };
 
 /** Uploads straight away (no Save needed), since a picture is either there or not. */
 export function PictureField({ kind, hint }: { kind: PictureKind; hint: string }) {
@@ -41,7 +41,7 @@ export function PictureField({ kind, hint }: { kind: PictureKind; hint: string }
   }
   async function remove() {
     setBusy(true);
-    try { await api(`/clinic/images/${kind}`, { method: "DELETE" }); await reload(); toast({ title: kind === "signature" ? "Signature removed" : `Back to the original ${kind}` }); }
+    try { await api(`/clinic/images/${kind}`, { method: "DELETE" }); await reload(); toast({ title: kind === "signature" ? "Signature removed" : kind === "receiptHead" ? "Receipts use the letterhead again" : `Back to the original ${kind}` }); }
     catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
   }
 
@@ -120,16 +120,32 @@ export function Holidays({ list, onChange }: { list: Holiday[]; onChange: (l: Ho
 /* ---------- Printouts ---------- */
 
 const SHOW_LABEL: Record<keyof PrintLayout["show"], string> = {
-  alerts: "Medical alerts", diagnosis: "Diagnosis", advice: "Advice", next: "Next visit", phone: "Patient’s mobile number", upi: "UPI ID on receipts",
+  alerts: "Medical alerts", diagnosis: "Diagnosis", advice: "Advice", next: "Next visit", phone: "Patient’s mobile number", upi: "UPI ID to pay a balance",
+};
+/** Which "what to show" boxes mean anything on each printout. */
+const SHOW_FOR: Record<"rx" | "receipt", (keyof PrintLayout["show"])[]> = {
+  rx: ["alerts", "diagnosis", "advice", "next", "phone"],
+  receipt: ["phone", "upi"],
 };
 
-export function Printouts({ layout, onChange }: { layout: PrintLayout; onChange: (p: PrintLayout) => void }) {
+/** Prescriptions and receipts each have their own layout; a switch at the top picks which one you're changing. */
+export function Printouts({ rx, receipt, onChange }: { rx: PrintLayout; receipt: PrintLayout; onChange: (doc: "rx" | "receipt", p: PrintLayout) => void }) {
   const { clinic } = useClinic();
   const [doc, setDoc] = useState<"rx" | "receipt">("rx");
-  const set = (patch: Partial<PrintLayout>) => onChange({ ...layout, ...patch });
+  const layout = doc === "rx" ? rx : receipt;
+  const set = (patch: Partial<PrintLayout>) => onChange(doc, { ...layout, ...patch });
+  const name = doc === "rx" ? "prescription" : "receipt";
   return (
     <div className="print-setup">
       <div className="stack">
+        <div className="print-which">
+          <div className="seg" role="group" aria-label="Which printout to design">
+            <button type="button" aria-pressed={doc === "rx"} onClick={() => setDoc("rx")}>Prescription</button>
+            <button type="button" aria-pressed={doc === "receipt"} onClick={() => setDoc("receipt")}>Receipt</button>
+          </div>
+          <span className="muted">Changes here apply to the {name} only.</span>
+          {doc === "receipt" && <button type="button" className="link-btn" onClick={() => onChange("receipt", { ...rx, footer: receipt.footer, show: { ...rx.show, upi: receipt.show.upi } })}>Copy the prescription’s design</button>}
+        </div>
         <section className="card stack">
           <h2>1. Letterhead</h2>
           <div className="radio-cards">
@@ -140,7 +156,9 @@ export function Printouts({ layout, onChange }: { layout: PrintLayout; onChange:
               </label>
             ))}
           </div>
-          {layout.header === "letterhead" && <PictureField kind="letterhead" hint="A PDF or picture of your heading. Dentalog keeps the top part of the page, where the heading is." />}
+          {layout.header === "letterhead" && (doc === "rx"
+            ? <PictureField kind="letterhead" hint="A PDF or picture of your heading. Dentalog keeps the top part of the page, where the heading is." />
+            : <PictureField kind="receiptHead" hint="A different heading just for receipts, as a PDF or picture. Leave it empty and receipts use the prescription letterhead." />)}
           {layout.header === "simple" && <PictureField kind="logo" hint="Shown in the menu and on the simple heading." />}
           {layout.header === "blank" && (
             <label className="field">Space to leave at the top: <b>{layout.topMm} mm</b>
@@ -155,7 +173,7 @@ export function Printouts({ layout, onChange }: { layout: PrintLayout; onChange:
         <section className="card stack">
           <h2>2. What to show</h2>
           <div className="check-grid">
-            {(Object.keys(SHOW_LABEL) as (keyof PrintLayout["show"])[]).map((k) => (
+            {SHOW_FOR[doc].map((k) => (
               <label key={k} className="check"><input type="checkbox" checked={layout.show[k]} onChange={(e) => set({ show: { ...layout.show, [k]: e.target.checked } })} /> {SHOW_LABEL[k]}</label>
             ))}
           </div>
@@ -184,20 +202,17 @@ export function Printouts({ layout, onChange }: { layout: PrintLayout; onChange:
             <button type="button" aria-pressed={layout.signature === "image"} onClick={() => set({ signature: "image" })}>Print my signature</button>
           </div>
           {layout.signature === "image" && <PictureField kind="signature" hint="Sign on white paper and take a photo, or upload a scan. Use a clear, dark pen." />}
-          <label className="field">Footer line on prescriptions<input className="input" maxLength={120} value={layout.footer} onChange={(e) => set({ footer: e.target.value })} /></label>
+          <label className="field">Footer line on {name}s<input className="input" maxLength={120} value={layout.footer} onChange={(e) => set({ footer: e.target.value })} /></label>
         </section>
       </div>
       <section className="card stack print-live">
         <div className="card-head">
           <h2>Live preview</h2>
-          <div className="seg small" role="group" aria-label="Which printout">
-            <button type="button" aria-pressed={doc === "rx"} onClick={() => setDoc("rx")}>Prescription</button>
-            <button type="button" aria-pressed={doc === "receipt"} onClick={() => setDoc("receipt")}>Receipt</button>
-          </div>
+          <span className="muted">{doc === "rx" ? "Prescription" : "Receipt"}</span>
         </div>
         <SheetPreview clinic={clinic} layout={layout} doc={doc} />
         <p className="muted">The test page uses the saved layout, so save your changes first.</p>
-        <a className="btn" href="/print/rx/test" target="_blank" rel="noopener noreferrer">Print a test page</a>
+        <a className="btn" href={`/print/${doc}/test`} target="_blank" rel="noopener noreferrer">Print a test {name}</a>
       </section>
     </div>
   );

@@ -1,7 +1,7 @@
 import { DRUG_SETS, DRUGS, type Drug } from "./drugs";
 import { SERVICES } from "./services";
 import { DEFAULT_TEMPLATES, type Templates } from "./messages";
-import { DEFAULT_PRINT, readPrint, type PrintLayout } from "./print";
+import { DEFAULT_PRINT, readPrint, RECEIPT_FOOTER, type PrintLayout } from "./print";
 
 export type Service = { name: string; paise: number; perTooth?: boolean; group?: string };
 export type Holiday = { day: string; name: string };
@@ -25,7 +25,10 @@ export type ClinicSettings = {
   reviewLink: string;
   /** Days the clinic is closed beyond the weekly hours. */
   holidays: Holiday[];
+  /** Prescription layout. */
   print: PrintLayout;
+  /** Receipt layout. */
+  printReceipt: PrintLayout;
   /** Whether the receptionist can see bills, take payments and print receipts. Never totals or reports. */
   receptionBilling: boolean;
 };
@@ -46,6 +49,7 @@ export const DEFAULT_SETTINGS: ClinicSettings = {
   reviewLink: "",
   holidays: [],
   print: DEFAULT_PRINT,
+  printReceipt: { ...DEFAULT_PRINT, footer: RECEIPT_FOOTER },
   receptionBilling: false,
 };
 
@@ -77,6 +81,8 @@ export function readSettings(json: string | null | undefined): ClinicSettings {
     templates: { ...DEFAULT_TEMPLATES, ...unchangedOld(saved.templates) },
     holidays: Array.isArray(saved.holidays) ? saved.holidays.filter((h) => h && /^\d{4}-\d{2}-\d{2}$/.test(h.day)).map((h) => ({ day: h.day, name: String(h.name ?? "") })) : [],
     print: readPrint(saved.print),
+    // Before receipts had their own layout they used the prescription's; start from that.
+    printReceipt: saved.printReceipt ? readPrint(saved.printReceipt) : { ...readPrint(saved.print), footer: RECEIPT_FOOTER },
     receptionBilling: saved.receptionBilling === true,
   };
 }

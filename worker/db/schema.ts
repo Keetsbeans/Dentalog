@@ -334,7 +334,7 @@ export const clinicImages = sqliteTable(
   "clinic_images",
   {
     clinicId: clinicId(),
-    key: text("key", { enum: ["logo", "letterhead", "signature"] }).notNull(),
+    key: text("key", { enum: ["logo", "letterhead", "receiptHead", "signature"] }).notNull(),
     contentType: text("content_type").notNull(),
     data: blob("data", { mode: "buffer" }).notNull(),
     updatedAt: text("updated_at").notNull(),

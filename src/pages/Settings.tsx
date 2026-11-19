@@ -66,6 +66,7 @@ export function Settings() {
         reviewLink: S.reviewLink,
         holidays: S.holidays,
         print: S.print,
+        printReceipt: S.printReceipt,
         receptionBilling: S.receptionBilling,
       };
       await api("/clinic", { method: "PUT", body: JSON.stringify({ ...draft!.details, hours: draft!.hours, settings: clean }) });
@@ -126,8 +127,8 @@ export function Settings() {
                 <button type="button" aria-pressed={previewDoc === "receipt"} onClick={() => setPreviewDoc("receipt")}>Receipt</button>
               </div>
             </div>
-            <SheetPreview clinic={clinic} layout={draft.settings.print} doc={previewDoc} />
-            <a className="btn" href="/print/rx/test" target="_blank" rel="noopener noreferrer">Open full size</a>
+            <SheetPreview clinic={clinic} layout={previewDoc === "rx" ? draft.settings.print : draft.settings.printReceipt} doc={previewDoc} />
+            <a className="btn" href={`/print/${previewDoc}/test`} target="_blank" rel="noopener noreferrer">Open full size</a>
           </section>
         </div>
       )}
@@ -258,7 +259,7 @@ export function Settings() {
         </section>
       )}
       {tab === "messages" && <Channels />}
-      {tab === "printouts" && <Printouts layout={draft.settings.print} onChange={(print) => st({ print })} />}
+      {tab === "printouts" && <Printouts rx={draft.settings.print} receipt={draft.settings.printReceipt} onChange={(doc, p) => st(doc === "rx" ? { print: p } : { printReceipt: p })} />}
       {tab === "account" && <Account receptionBilling={draft.settings.receptionBilling} onReceptionBilling={(on) => st({ receptionBilling: on })} />}
       {tab === "data" && <YourData />}
       {dirty && !VIEW_ONLY.includes(tab) && <div className="save-bar"><span>Unsaved changes</span><button type="button" className="btn primary" disabled={busy} onClick={save}>{busy ? "Saving…" : "Save changes"}</button></div>}
