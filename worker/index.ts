@@ -21,7 +21,8 @@ import { getTeeth, putTooth } from "./teeth";
 import { today } from "./today";
 import { publicGet, publicPost } from "./public";
 import { addStaff, dropRequest, editStaff, listRequests, listStaff, requestMessage, sendRequest } from "./staff";
-import { editFile, getFile, listFiles, uploadFile } from "./files";
+import { importPatients } from "./importPatients";
+import { editFile, getFile, listFiles, storageUse, uploadFile } from "./files";
 import { activity, deleteImage, exportAll, getImage, imageVersions, putImage } from "./clinicData";
 
 const app = new Hono<AppEnv>().basePath("/api");
@@ -60,6 +61,7 @@ app.patch("/files/:id", editFile);
 app.put("/clinic/images/:key", putImage);
 app.delete("/clinic/images/:key", deleteImage);
 app.get("/export", exportAll);
+app.get("/storage", storageUse);
 app.get("/activity", activity);
 
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -232,6 +234,8 @@ function patientFields(b: PatientIn, creating: boolean): Partial<typeof s.patien
   if (b.whatsappConsent !== undefined) out.whatsappConsent = !!b.whatsappConsent;
   return out;
 }
+
+app.post("/patients/import", importPatients);
 
 app.post("/patients", async (c) => {
   const f = patientFields(await c.req.json<PatientIn>(), true);

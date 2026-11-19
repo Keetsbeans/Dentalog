@@ -358,8 +358,37 @@ const NOUN: Record<string, string> = { patient: "a patient", appointment: "an ap
 function describe(l: Log) {
   if (l.entity === "login") return l.action === "login" ? "Signed in" : "Wrong password tried";
   if (l.action === "export") return "Exported all data to Excel";
+  if (l.action === "import") return `Imported ${l.entityId} ${l.entityId === "1" ? "patient" : "patients"} from Excel`;
   if (l.entity === "picture") return `${VERB[l.action] ?? l.action} the ${l.entityId}`;
   return `${VERB[l.action] ?? l.action} ${NOUN[l.entity] ?? l.entity}`;
+}
+
+type Storage = { files: number; fileBytes: number; dbBytes: number | null; patients: number };
+const GB = 1024 ** 3;
+const amount = (b: number) => (b >= GB ? `${(b / GB).toFixed(2)} GB` : b >= 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`);
+
+/** Space used against Cloudflare's free allowance: 10 GB of files (R2) and 5 GB of records (D1). */
+function StorageUse() {
+  const [u, setU] = useState<Storage | null>(null);
+  useEffect(() => { api<Storage>("/storage").then(setU).catch(() => setU(null)); }, []);
+  if (!u) return null;
+  const bar = (used: number, of: number, label: string, sub: string) => {
+    const pct = Math.min(100, (used / of) * 100);
+    return (
+      <div className="use-row">
+        <div className="use-head"><b>{label}</b><span className="nums">{amount(used)} of {of / GB} GB free</span></div>
+        <div className="use-bar" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(pct)} aria-label={label}><span style={{ width: `${Math.max(pct, 0.5)}%` }} /></div>
+        <span className="muted small">{sub}</span>
+      </div>
+    );
+  };
+  return (
+    <section className="card stack">
+      <h2>Storage used</h2>
+      {bar(u.fileBytes, 10 * GB, "Files and X-rays", `${u.files.toLocaleString("en-IN")} ${u.files === 1 ? "file" : "files"}, including any in Recently deleted. Beyond 10 GB, Cloudflare charges about ₹1.30 per GB a month.`)}
+      {u.dbBytes !== null && bar(u.dbBytes, 5 * GB, "Patient records", `${u.patients.toLocaleString("en-IN")} patients with their visits, bills, appointments and messages.`)}
+    </section>
+  );
 }
 
 export function YourData() {
@@ -385,6 +414,7 @@ export function YourData() {
   return (
     <div className="visit-grid">
       <div className="stack">
+        <StorageUse />
         <section className="card stack">
           <h2>Backups</h2>
           <p className="muted">Cloudflare keeps a restore point of the database for every minute of the last 30 days (7 days on the free plan). If something goes wrong, everything can be put back to how it was at any moment in that time. Export to Excel below for a copy of your own.</p>

@@ -1,5 +1,5 @@
 import { who } from "./auth";
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import type { Context } from "hono";
 import * as s from "./db/schema";
@@ -22,6 +22,14 @@ const NO_STORAGE = { error: "File storage isn’t switched on yet." };
 
 const safeName = (n: string) => n.replace(/[\\/:*?"<>|\u0000-\u001f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 120) || "file";
 const cols = { id: s.files.id, kind: s.files.kind, tooth: s.files.tooth, note: s.files.note, filename: s.files.filename, contentType: s.files.contentType, bytes: s.files.bytes, createdAt: s.files.createdAt, visitId: s.files.visitId };
+
+/** How much space the clinic uses: patient files in R2 (including ones in Recently deleted) and the database. */
+export async function storageUse(c: C) {
+  const [f] = await db(c.env).select({ n: sql<number>`count(*)`, bytes: sql<number>`coalesce(sum(${s.files.bytes}), 0)` }).from(s.files).where(eq(s.files.clinicId, CLINIC_ID));
+  const probe = await c.env.DB.prepare("SELECT 1").run();
+  const [p] = await db(c.env).select({ n: sql<number>`count(*)` }).from(s.patients).where(eq(s.patients.clinicId, CLINIC_ID));
+  return c.json({ files: f?.n ?? 0, fileBytes: f?.bytes ?? 0, dbBytes: (probe.meta as { size_after?: number }).size_after ?? null, patients: p?.n ?? 0 });
+}
 
 export async function listFiles(c: C) {
   const rows = await db(c.env).select(cols).from(s.files)

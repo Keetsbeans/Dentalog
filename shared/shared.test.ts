@@ -219,3 +219,27 @@ describe("separate receipt layout", () => {
     expect(both.printReceipt.accent).toBe("black");
   });
 });
+
+describe("patient import", () => {
+  it("guesses columns from common headers", async () => {
+    const { guessColumns } = await import("./importPatients");
+    const m = guessColumns(["S.No", "Patient ID", "File No", "Patient Name", "Father Name", "Age", "Sex", "Mobile No", "Medical History", "Reg Date", "Address"]);
+    expect(m).toMatchObject({ code: 1, fileNo: 2, name: 3, age: 5, gender: 6, phone: 7, alerts: 8, registered: 9, notes: 10 });
+  });
+  it("reads Indian mobiles, dates and ages", async () => {
+    const { readPhone, readDate, checkRow } = await import("./importPatients");
+    expect(readPhone("+91 98400-12345 / 044 2626 1234")).toEqual({ cc: "91", phone: "9840012345" });
+    expect(readPhone(919840012345)).toEqual({ cc: "91", phone: "9840012345" });
+    expect(readPhone("09840012345")).toEqual({ cc: "91", phone: "9840012345" });
+    expect(readPhone("044 2626 1234")).toBeNull();
+    expect(readDate("15/03/2023")).toBe("2023-03-15");
+    expect(readDate(45000)).toBe("2023-03-15");
+    expect(readDate("2023-3-5")).toBe("2023-03-05");
+    const headers = ["Name", "Mobile", "Age", "Reg Date", "History", "Address"];
+    const c = checkRow(["Anitha P", "98400 12345", 40, "15/03/2023", "Diabetic, BP", "Anna Nagar"], { name: 0, phone: 1, age: 2, registered: 3, alerts: 4 }, headers, [5]);
+    expect(c.row).toMatchObject({ name: "Anitha P", phone: "9840012345", birthYear: 1983, createdAt: "2023-03-15", alerts: ["Diabetic", "BP"], notes: "Address: Anna Nagar" });
+    expect(c.problems).toEqual([]);
+    expect(checkRow(["Ravi", "", 30, "", "Nil", ""], { name: 0, phone: 1, alerts: 4 }, headers, []).row.alerts).toEqual([]);
+    expect(checkRow(["", "9840012345"], { name: 0, phone: 1 }, headers, []).skip).toBe(true);
+  });
+});
