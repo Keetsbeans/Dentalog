@@ -21,9 +21,11 @@ export function isTrashKind(k: string): k is TrashKind {
   return k in TRASHABLE;
 }
 
-export async function audit(db: Db, clinicId: string, action: string, entity: string, entityId: string, detail?: unknown) {
+/** `by` is the clinic id (the owner, e.g. from deletes, which only the owner can do) or { clinicId, actor } from who(c). */
+export async function audit(db: Db, by: string | { clinicId: string; actor: string }, action: string, entity: string, entityId: string, detail?: unknown) {
+  const { clinicId, actor } = typeof by === "string" ? { clinicId: by, actor: "Owner" } : by;
   await db.insert(s.auditLog).values({
-    clinicId, actor: "doctor", action, entity, entityId,
+    clinicId, actor, action, entity, entityId,
     detail: detail === undefined ? null : JSON.stringify(detail),
   });
 }

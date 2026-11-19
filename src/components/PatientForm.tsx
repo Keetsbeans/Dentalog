@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { api, type Patient } from "../lib/api";
 import { checkPhone, COUNTRY_CODES } from "../../shared/phone";
+import { useMe } from "./AuthGate";
 
 export const ALERTS = ["Diabetic", "BP", "Blood thinners", "Penicillin allergy", "Other allergy", "Pregnant", "Heart condition"];
 
@@ -40,6 +41,9 @@ export function PatientForm({ patient, onClose, onSaved }: { patient?: Full; onC
   const [consent, setConsent] = useState(patient?.whatsappConsent ?? true);
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
+  // Front desk can note alerts on a new patient, but only a doctor changes them afterwards.
+  const { can } = useMe();
+  const lockAlerts = !!patient && !can("alerts.edit");
 
   async function save(e: FormEvent) {
     e.preventDefault();
@@ -52,7 +56,7 @@ export function PatientForm({ patient, onClose, onSaved }: { patient?: Full; onC
     const body = {
       name, phoneCc: cc, phone, email: email.trim() || null, gender: gender || null,
       birthYear: a === null ? null : new Date().getFullYear() - a,
-      alerts: [...alerts.filter((x) => ALERTS.includes(x)), ...other.split(",").map((x) => x.trim()).filter(Boolean)],
+      alerts: lockAlerts ? undefined : [...alerts.filter((x) => ALERTS.includes(x)), ...other.split(",").map((x) => x.trim()).filter(Boolean)],
       whatsappConsent: consent,
     };
     try {
@@ -86,7 +90,11 @@ export function PatientForm({ patient, onClose, onSaved }: { patient?: Full; onC
             </select>
           </label>
         </div>
-        <fieldset className="field"><legend>Medical alerts</legend>
+        {lockAlerts ? (
+          <div className="field"><span>Medical alerts</span>
+            <span className="muted">{patient.alerts.length ? patient.alerts.join(" · ") : "None noted"}. Only a doctor can change these.</span>
+          </div>
+        ) : <fieldset className="field"><legend>Medical alerts</legend>
           <div className="chips">
             {ALERTS.map((a) => {
               const on = alerts.includes(a);
@@ -94,7 +102,7 @@ export function PatientForm({ patient, onClose, onSaved }: { patient?: Full; onC
             })}
           </div>
           <input className="input" aria-label="Other alerts" value={other} onChange={(e) => setOther(e.target.value)} placeholder="Other alerts, separated by commas (e.g. on metformin)" />
-        </fieldset>
+        </fieldset>}
         <label className="check"><input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} /> Patient agrees to records and WhatsApp messages</label>
         {err && <p className="error" role="alert">{err}</p>}
         <div className="dialog-actions">

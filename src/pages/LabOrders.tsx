@@ -9,6 +9,7 @@ import { dayLabel } from "../components/Appointments";
 import { rupees } from "../../shared/money";
 import { addDays, todayIst } from "../../shared/time";
 import { formatPhone } from "../../shared/phone";
+import { useMe } from "../components/AuthGate";
 
 type Filter = "open" | "late" | "unpaid" | "all";
 const STATUS: Record<LabOrder["status"], string> = { sent: "At the lab", received: "Back, to fit", fitted: "Fitted" };
@@ -16,6 +17,7 @@ const NEXT: Partial<Record<LabOrder["status"], [LabOrder["status"], string]>> = 
 const short = (d: string) => dayLabel(d, { day: "numeric", month: "short" });
 
 export function LabOrders() {
+  const { can } = useMe();
   const toast = useToast();
   const [rows, setRows] = useState<LabOrder[] | null>(null);
   const [error, setError] = useState("");
@@ -64,7 +66,7 @@ export function LabOrders() {
     <>
       <div className="page-head">
         <div><h1>Lab orders</h1><p className="muted">Crowns, bridges, dentures and appliances sent to dental labs</p></div>
-        <button type="button" className="btn primary" onClick={() => setAdding(true)}>New lab order</button>
+        {can("lab.write") && <button type="button" className="btn primary" onClick={() => setAdding(true)}>New lab order</button>}
       </div>
       {error && <p className="error" role="alert">{error}</p>}
       <div className="stats">
@@ -93,10 +95,10 @@ export function LabOrders() {
                 <div className="lab-actions">
                   <span className={"pill " + (o.status === "fitted" ? "s-done" : o.status === "received" ? "s-arrived" : late(o) ? "s-no_show" : "s-booked")}>{STATUS[o.status]}</span>
                   {NEXT[o.status] && <button type="button" className="btn small primary" onClick={() => step(o)}>{NEXT[o.status]![1]}</button>}
-                  {(owed(o) > 0 || !o.billPaise) && <button type="button" className="btn small" onClick={() => setPaying(o)}>{o.billPaise ? "Pay lab" : "Enter bill"}</button>}
-                  <button type="button" className="icon-btn" aria-label={`Delete ${o.number}`} onClick={() => setToDelete(o)}>
+                  {can("lab.write") && (owed(o) > 0 || !o.billPaise) && <button type="button" className="btn small" onClick={() => setPaying(o)}>{o.billPaise ? "Pay lab" : "Enter bill"}</button>}
+                  {can("delete") && <button type="button" className="icon-btn" aria-label={`Delete ${o.number}`} onClick={() => setToDelete(o)}>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /></svg>
-                  </button>
+                  </button>}
                 </div>
               </li>
             ))}

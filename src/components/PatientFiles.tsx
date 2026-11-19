@@ -4,6 +4,7 @@ import { useToast } from "./Toast";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { dayLabel } from "./Appointments";
 import { utcToIst } from "../../shared/time";
+import { useMe } from "./AuthGate";
 
 export type FileKind = "xray" | "photo" | "consent" | "document" | "other";
 export type PatientFile = { id: string; kind: FileKind; tooth: string | null; note: string | null; filename: string; contentType: string; bytes: number; createdAt: string; visitId: string | null };
@@ -67,6 +68,7 @@ function UploadDialog({ files, defaultTooth, onClose, onUpload }: { files: File[
 }
 
 function FileCard({ f, onEdit, onDelete }: { f: PatientFile; onEdit: () => void; onDelete: () => void }) {
+  const { can } = useMe();
   const t = utcToIst(f.createdAt);
   const url = `/api/files/${f.id}`;
   return (
@@ -79,9 +81,9 @@ function FileCard({ f, onEdit, onDelete }: { f: PatientFile; onEdit: () => void;
         <span className="muted">{LABEL[f.kind]}{f.tooth ? ` · tooth ${f.tooth}` : ""} · {dayLabel(t.day, { day: "numeric", month: "short", year: "numeric" })} · {size(f.bytes)}</span>
         {f.note && <span className="file-note">{f.note}</span>}
         <span className="file-actions">
-          <button type="button" className="link-btn inline" onClick={onEdit}>Edit</button>
+          {can("files.edit") && <button type="button" className="link-btn inline" onClick={onEdit}>Edit</button>}
           <a className="link-btn inline" href={`${url}?download=1`}>Download</a>
-          <button type="button" className="link-btn inline danger-text" onClick={onDelete}>Delete</button>
+          {can("delete") && <button type="button" className="link-btn inline danger-text" onClick={onDelete}>Delete</button>}
         </span>
       </div>
     </li>

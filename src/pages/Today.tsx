@@ -69,28 +69,28 @@ export function Today() {
       </div>
       {error && <p className="error" role="alert">{error}</p>}
 
-      <div className="home-stats">
+      <div className="home-stats" style={{ gridTemplateColumns: `repeat(${1 + (info?.money ? 2 : 0) + (info?.bills ? 1 : 0)}, minmax(0, 1fr))` }}>
         <div className="stat">
           <span className="stat-label">Patients today</span>
           <b className="nums">{seen} of {live.length} seen</b>
           <div className="progress" aria-hidden="true"><span className="p-done" style={{ width: pctOf(seen) }} /><span className="p-here" style={{ width: pctOf(here) }} /></div>
           <small>{here} at the clinic now · {toCome} still to come</small>
         </div>
-        <div className="stat">
+        {info?.money && <div className="stat">
           <span className="stat-label">Collected today</span>
           <b className="nums">{rupees(info?.collectedPaise ?? 0)}</b>
           <small>{info && info.collectedPaise > 0 ? `From ${info.collectedFrom} patient${info.collectedFrom === 1 ? "" : "s"} · ${info.modes.join(" and ")}` : "Nothing collected yet"}</small>
-        </div>
-        <Link className="stat link" to="/billing">
+        </div>}
+        {info?.bills && <Link className="stat link" to="/billing">
           <span className="stat-label">Waiting to be billed</span>
           <b className={"nums" + (info?.toBill.length ? " amber" : "")}>{info?.toBill.length ? (billable > 0 ? rupees(billable) : `${info.toBill.length} to bill`) : "Nothing"}</b>
           <small>{info?.toBill.length ? info.toBill.slice(0, 3).map((x) => x.name).join(", ") + (info.toBill.length > 3 ? ` +${info.toBill.length - 3}` : "") : "All seen patients are billed"}</small>
-        </Link>
-        <Link className="stat link" to="/reports">
+        </Link>}
+        {info?.money && <Link className="stat link" to="/reports">
           <span className="stat-label">Still to collect</span>
           <b className={"nums" + (info?.outstandingPaise ? " due" : "")}>{rupees(info?.outstandingPaise ?? 0)}</b>
           <small>{info?.owingPatients ? `Unpaid balances from ${info.owingPatients} patient${info.owingPatients === 1 ? "" : "s"}` : "No unpaid bills"}</small>
-        </Link>
+        </Link>}
       </div>
 
       <div className="home-grid">

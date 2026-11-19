@@ -66,6 +66,7 @@ export function Settings() {
         reviewLink: S.reviewLink,
         holidays: S.holidays,
         print: S.print,
+        receptionBilling: S.receptionBilling,
       };
       await api("/clinic", { method: "PUT", body: JSON.stringify({ ...draft!.details, hours: draft!.hours, settings: clean }) });
       await reload(); setDirty(false);
@@ -258,7 +259,7 @@ export function Settings() {
       )}
       {tab === "messages" && <Channels />}
       {tab === "printouts" && <Printouts layout={draft.settings.print} onChange={(print) => st({ print })} />}
-      {tab === "account" && <Account />}
+      {tab === "account" && <Account receptionBilling={draft.settings.receptionBilling} onReceptionBilling={(on) => st({ receptionBilling: on })} />}
       {tab === "data" && <YourData />}
       {dirty && !VIEW_ONLY.includes(tab) && <div className="save-bar"><span>Unsaved changes</span><button type="button" className="btn primary" disabled={busy} onClick={save}>{busy ? "Saving…" : "Save changes"}</button></div>}
     </>

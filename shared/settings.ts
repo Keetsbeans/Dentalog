@@ -26,6 +26,8 @@ export type ClinicSettings = {
   /** Days the clinic is closed beyond the weekly hours. */
   holidays: Holiday[];
   print: PrintLayout;
+  /** Whether the receptionist can see bills, take payments and print receipts. Never totals or reports. */
+  receptionBilling: boolean;
 };
 
 export const DEFAULT_SETTINGS: ClinicSettings = {
@@ -44,6 +46,7 @@ export const DEFAULT_SETTINGS: ClinicSettings = {
   reviewLink: "",
   holidays: [],
   print: DEFAULT_PRINT,
+  receptionBilling: false,
 };
 
 /** The first wording, signed by the doctor. Saved copies of it move to the new automated wording. */
@@ -74,5 +77,6 @@ export function readSettings(json: string | null | undefined): ClinicSettings {
     templates: { ...DEFAULT_TEMPLATES, ...unchangedOld(saved.templates) },
     holidays: Array.isArray(saved.holidays) ? saved.holidays.filter((h) => h && /^\d{4}-\d{2}-\d{2}$/.test(h.day)).map((h) => ({ day: h.day, name: String(h.name ?? "") })) : [],
     print: readPrint(saved.print),
+    receptionBilling: saved.receptionBilling === true,
   };
 }

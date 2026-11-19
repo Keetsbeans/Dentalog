@@ -157,9 +157,61 @@ function Queue({ templates }: { templates: Templates }) {
       <div className="msg-toolbar">
         <label className="check"><input type="checkbox" checked={hideSent} onChange={(e) => setHideSent(e.target.checked)} /> Hide ones already sent</label>
       </div>
+      <Requests />
       {ORDER.map(section)}
       <p className="muted">Each button opens WhatsApp with the message typed in. Check it and tap Send there. Reminders carry a link where the patient can confirm or ask for another time, and their answer shows here and on the appointment.</p>
     </>
+  );
+}
+
+type Request = { id: string; kind: MessageKind | "other"; body: string; createdAt: string; patient: QueuePatient; by: string };
+
+/** Messages other staff wrote for a patient. The owner reads each one, then sends it on WhatsApp or discards it. */
+function Requests() {
+  const [rows, setRows] = useState<Request[]>([]);
+  const toast = useToast();
+  useEffect(() => { api<Request[]>("/messages/requests").then(setRows).catch(() => setRows([])); }, []);
+  if (rows.length === 0) return null;
+  const gone = (id: string) => setRows((xs) => xs.filter((x) => x.id !== id));
+  return (
+    <section className="card msg-section">
+      <h2>Waiting for approval <span className="muted">· {rows.length} from staff</span></h2>
+      <ul className="list">{rows.map((r) => <RequestRow key={r.id} r={r} onDone={(msg) => { gone(r.id); toast({ title: msg }); }} />)}</ul>
+    </section>
+  );
+}
+
+function RequestRow({ r, onDone }: { r: Request; onDone: (msg: string) => void }) {
+  const [text, setText] = useState(r.body);
+  const [editing, setEditing] = useState(false);
+  const link = waLink(r.patient.phoneCc, r.patient.phone, text);
+  const first = r.patient.name.split(/\s+/)[0];
+  async function sent() {
+    try { await api(`/messages/requests/${r.id}`, { method: "PATCH", body: JSON.stringify({ body: text }) }); onDone(`Sent to ${first}. It’s in their conversation now.`); }
+    catch { /* WhatsApp still opened */ }
+  }
+  async function discard() {
+    try { await api(`/messages/requests/${r.id}`, { method: "DELETE" }); onDone(`${r.by}’s message to ${first} discarded.`); } catch { /* stays in the list */ }
+  }
+  return (
+    <li className="msg-row">
+      <div className="msg-who">
+        <Link to={`/patients/${r.patient.id}`}><b>{r.patient.name}</b></Link> <span className="muted">{r.patient.code}</span>
+        <span className="q-sub">Asked by {r.by}, {when(r.createdAt)}{r.kind !== "other" ? ` · ${KIND_LABEL[r.kind]}` : ""}</span>
+      </div>
+      {editing ? (
+        <label className="field msg-edit"><span className="sr-only">Message to {r.patient.name}</span>
+          <textarea className="input" rows={5} value={text} onChange={(e) => setText(e.target.value)} />
+        </label>
+      ) : <p className="msg-text">{text}</p>}
+      <div className="msg-actions">
+        {!r.patient.consent ? <span className="muted">Said no to WhatsApp</span>
+          : !link ? <Link className="muted" to={`/patients/${r.patient.id}`}>Check their mobile number</Link>
+          : <a className="btn wa" href={link} target="_blank" rel="noopener noreferrer" onClick={sent}>Send on WhatsApp</a>}
+        <button type="button" className="link-btn" onClick={() => setEditing(!editing)}>{editing ? "Done editing" : "Edit"}</button>
+        <button type="button" className="link-btn danger" onClick={discard}>Discard</button>
+      </div>
+    </li>
   );
 }
 

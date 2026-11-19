@@ -9,6 +9,7 @@ import { rupees } from "../../shared/money";
 import { dayLabel } from "./Appointments";
 import { label12, utcToIst } from "../../shared/time";
 import { formatPhone } from "../../shared/phone";
+import { useMe } from "./AuthGate";
 
 /** "1,200" or "1200.50" → paise. Empty or bad → null. */
 export function toPaise(s: string): number | null {
@@ -45,6 +46,7 @@ export function NewBill({ patient: fixed, lines: lines0, onClose, onSaved }: {
   patient?: Pick<Patient, "id" | "name" | "code">; lines?: { service: string; tooth: string; amount: string }[];
   onClose: () => void; onSaved: (msg: string, receiptId?: string) => void;
 }) {
+  const { can } = useMe();
   const { settings } = useClinic();
   const [patient, setPatient] = useState(fixed ?? null);
   const [q, setQ] = useState("");
@@ -114,7 +116,7 @@ export function NewBill({ patient: fixed, lines: lines0, onClose, onSaved }: {
                 <button type="button" className="icon-btn" aria-label={`Remove ${l.service}`} onClick={() => setLines(lines.filter((_, n) => n !== i))}>×</button>
               </div>
             ))}
-            <div className="bill-line"><span className="grow muted">Discount (₹)</span><label className="field amt"><span className="sr-only">Discount in rupees</span><input className="input nums right" inputMode="decimal" value={discount} placeholder="0" onChange={(e) => setDiscount(e.target.value)} /></label><span className="icon-pad" /></div>
+            {can("billing.edit") && <div className="bill-line"><span className="grow muted">Discount (₹)</span><label className="field amt"><span className="sr-only">Discount in rupees</span><input className="input nums right" inputMode="decimal" value={discount} placeholder="0" onChange={(e) => setDiscount(e.target.value)} /></label><span className="icon-pad" /></div>}
             <div className="bill-total"><span>Total</span><b className="nums">{rupees(total)}</b></div>
           </div>
         )}
@@ -179,6 +181,7 @@ const summary = (v: BillVersion) => v.lines.map((l) => `${l.service}${l.tooth ? 
 
 /** One bill: its lines, payments, take the balance, print a receipt, delete. */
 export function BillDialog({ id, onClose, onChanged }: { id: string; onClose: () => void; onChanged: () => void }) {
+  const { can } = useMe();
   const toast = useToast();
   const [inv, setInv] = useState<Invoice | null>(null);
   const [err, setErr] = useState("");
@@ -264,8 +267,8 @@ export function BillDialog({ id, onClose, onChanged }: { id: string; onClose: ()
             {err && <p className="error" role="alert">{err}</p>}
             <div className="dialog-actions spread">
               {inv.receipts.length > 0 && <button type="button" className="btn" onClick={() => printReceipt(inv.receipts[inv.receipts.length - 1]!.id)}>Print latest receipt</button>}
-              {!editing && <button type="button" className="btn" onClick={() => { setPaying(false); setEditing(true); }}>Edit bill</button>}
-              <button type="button" className="btn danger-outline" onClick={() => setConfirm(true)}>Delete bill</button>
+              {!editing && can("billing.edit") && <button type="button" className="btn" onClick={() => { setPaying(false); setEditing(true); }}>Edit bill</button>}
+              {can("delete") && <button type="button" className="btn danger-outline" onClick={() => setConfirm(true)}>Delete bill</button>}
             </div>
           </>
         )}

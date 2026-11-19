@@ -112,6 +112,9 @@ export const visits = sqliteTable(
     nextVisit: text("next_visit"),
     /** Once signed the note is locked; later changes are addenda. */
     signedAt: text("signed_at"),
+    /** Staff ids: who started the note, and the doctor who signed it (their name goes on the prescription). */
+    createdBy: text("created_by"),
+    signedBy: text("signed_by"),
     createdAt: createdAt(),
     ...softDelete,
   },
@@ -269,6 +272,10 @@ export const messages = sqliteTable(
     /** The appointment, bill or lab order the message was about. */
     refId: text("ref_id"),
     body: text("body").notNull(),
+    /** sent: opened in WhatsApp. requested: a doctor or receptionist asked for it; waits for the owner to send. */
+    status: text("status", { enum: ["sent", "requested"] }).notNull().default("sent"),
+    /** Staff id of who sent it, or who asked for it. */
+    byUser: text("by_user"),
     createdAt: createdAt(),
   },
   (t) => [index("messages_ref").on(t.clinicId, t.kind, t.refId)],
@@ -333,4 +340,27 @@ export const clinicImages = sqliteTable(
     updatedAt: text("updated_at").notNull(),
   },
   (t) => [uniqueIndex("clinic_images_pk").on(t.clinicId, t.key)],
+);
+
+/** Everyone who signs in: the owner, other doctors and the front desk. */
+export const users = sqliteTable(
+  "users",
+  {
+    id: id(),
+    clinicId: clinicId(),
+    name: text("name").notNull(),
+    email: text("email").notNull(),
+    role: text("role", { enum: ["owner", "doctor", "reception"] }).notNull(),
+    /** Doctors: printed after their name on prescriptions, e.g. "BDS, MDS". */
+    qualification: text("qualification"),
+    /** PBKDF2-SHA256, base64. Never the password itself. */
+    passwordHash: text("password_hash").notNull(),
+    passwordSalt: text("password_salt").notNull(),
+    active: integer("active", { mode: "boolean" }).notNull().default(true),
+    /** Raised to sign this person out of every device (password reset, login switched off). */
+    sessionVersion: integer("session_version").notNull().default(1),
+    lastLoginAt: text("last_login_at"),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("users_email").on(t.email)],
 );

@@ -1,3 +1,4 @@
+import { who } from "./auth";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import type { Context } from "hono";
@@ -43,7 +44,7 @@ export async function putImage(c: C) {
   await c.env.DB.prepare(
     "INSERT INTO clinic_images (clinic_id, key, content_type, data, updated_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT (clinic_id, key) DO UPDATE SET content_type = excluded.content_type, data = excluded.data, updated_at = excluded.updated_at",
   ).bind(CLINIC_ID, key, type, data, updatedAt).run();
-  await audit(db(c.env), CLINIC_ID, "upload", "picture", key, { bytes: data.byteLength });
+  await audit(db(c.env), who(c), "upload", "picture", key, { bytes: data.byteLength });
   return c.json({ key, updatedAt });
 }
 
@@ -51,7 +52,7 @@ export async function deleteImage(c: C) {
   const key = c.req.param("key")!;
   if (!isKey(key)) return c.json({ error: "Unknown picture." }, 404);
   await c.env.DB.prepare("DELETE FROM clinic_images WHERE clinic_id = ? AND key = ?").bind(CLINIC_ID, key).run();
-  await audit(db(c.env), CLINIC_ID, "remove", "picture", key);
+  await audit(db(c.env), who(c), "remove", "picture", key);
   return c.json({ ok: true });
 }
 
@@ -73,7 +74,7 @@ export async function exportAll(c: C) {
   ]);
   const visitIds = new Set(visits.map((v) => v.id)), invIds = new Set(invoices.map((i) => i.id));
   const strip = <T extends Record<string, unknown>>(rows: T[]) => rows.map(({ clinicId: _c, deletedAt: _d, deletedReason: _r, confirmToken: _t, ...r }) => r);
-  await audit(d, CLINIC_ID, "export", "clinic", CLINIC_ID);
+  await audit(d, who(c), "export", "clinic", CLINIC_ID);
   return c.json({
     Patients: strip(patients), Appointments: strip(appointments), Visits: strip(visits),
     Prescriptions: strip(items.filter((i) => visitIds.has(i.visitId))),

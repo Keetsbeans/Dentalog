@@ -8,6 +8,7 @@ import { rupees } from "../shared/money";
 import type { MessageKind } from "../shared/messages";
 import { readSettings } from "../shared/settings";
 import { confirmToken } from "./public";
+import type { AppEnv } from "./auth";
 
 type C = Context<{ Bindings: Env }>;
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
@@ -60,7 +61,7 @@ export async function queue(c: C) {
     d.select({ invoiceId: s.receipts.invoiceId, amount: s.receipts.amountPaise }).from(s.receipts)
       .where(and(eq(s.receipts.clinicId, CLINIC_ID), isNull(s.receipts.deletedAt))),
     d.select({ kind: s.messages.kind, refId: s.messages.refId, at: s.messages.createdAt }).from(s.messages)
-      .where(and(eq(s.messages.clinicId, CLINIC_ID), eq(s.messages.direction, "out"), gte(s.messages.createdAt, ago(400)))).orderBy(desc(s.messages.createdAt)),
+      .where(and(eq(s.messages.clinicId, CLINIC_ID), eq(s.messages.direction, "out"), eq(s.messages.status, "sent"), gte(s.messages.createdAt, ago(400)))).orderBy(desc(s.messages.createdAt)),
     d.select({ a: s.appointments, p: pCols }).from(s.appointments).innerJoin(s.patients, eq(s.patients.id, s.appointments.patientId))
       .where(and(eq(s.appointments.clinicId, CLINIC_ID), isNull(s.appointments.deletedAt), isNull(s.patients.deletedAt), eq(s.appointments.status, "booked"),
         gte(s.appointments.startsAt, nowIso), lt(s.appointments.startsAt, istToUtc(addDays(today, 1), "00:00"))))
@@ -138,7 +139,7 @@ export async function logSent(c: C) {
   const d = drizzle(c.env.DB, { schema: s });
   const [p] = await d.select({ id: s.patients.id }).from(s.patients).where(and(eq(s.patients.id, b.patientId), eq(s.patients.clinicId, CLINIC_ID)));
   if (!p) return c.json({ error: "That patient was not found." }, 404);
-  const row = { id: crypto.randomUUID(), clinicId: CLINIC_ID, patientId: p.id, kind, refId: b.refId ?? null, body: b.body.trim().slice(0, 2000), createdAt: new Date().toISOString() };
+  const row = { id: crypto.randomUUID(), clinicId: CLINIC_ID, patientId: p.id, kind, refId: b.refId ?? null, byUser: (c as unknown as Context<AppEnv>).get("user")?.id ?? null, body: b.body.trim().slice(0, 2000), createdAt: new Date().toISOString() };
   await d.insert(s.messages).values(row);
   return c.json({ id: row.id, createdAt: row.createdAt });
 }
@@ -149,7 +150,7 @@ export async function sentLog(c: C) {
   const pid = c.req.query("patientId");
   const rows = await d.select({ m: s.messages, p: { id: s.patients.id, name: s.patients.name, code: s.patients.code, phone: s.patients.phone, phoneCc: s.patients.phoneCc, consent: s.patients.whatsappConsent } })
     .from(s.messages).innerJoin(s.patients, eq(s.patients.id, s.messages.patientId))
-    .where(and(eq(s.messages.clinicId, CLINIC_ID), isNull(s.patients.deletedAt), pid ? eq(s.messages.patientId, pid) : undefined))
+    .where(and(eq(s.messages.clinicId, CLINIC_ID), eq(s.messages.status, "sent"), isNull(s.patients.deletedAt), pid ? eq(s.messages.patientId, pid) : undefined))
     .orderBy(desc(s.messages.createdAt)).limit(pid ? 500 : 300);
   return c.json(rows.map(({ m, p }) => ({ ...m, patient: p })));
 }

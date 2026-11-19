@@ -4,7 +4,7 @@ import { dayLabel } from "./Appointments";
 import { label12, utcToIst } from "../../shared/time";
 
 /** Dated additions under a signed visit note. */
-export function Addenda({ visitId, items, onAdded }: { visitId: string; items: Addendum[]; onAdded: (a: Addendum) => void }) {
+export function Addenda({ visitId, items, onAdded, readOnly }: { visitId: string; items: Addendum[]; onAdded: (a: Addendum) => void; readOnly?: boolean }) {
   const [text, setText] = useState("");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
@@ -25,9 +25,11 @@ export function Addenda({ visitId, items, onAdded }: { visitId: string; items: A
           })}
         </ul>
       )}
+      {!readOnly && <>
       <label className="field">New addendum<textarea className="input area" value={text} onChange={(e) => setText(e.target.value)} placeholder="e.g. Patient called: pain settled, continue medicines." /></label>
       {err && <p className="error" role="alert">{err}</p>}
       <button type="button" className="btn primary" disabled={busy || !text.trim()} onClick={add}>{busy ? "Adding…" : "Add addendum"}</button>
+      </>}
     </section>
   );
 }

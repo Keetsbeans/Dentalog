@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link } from "react-router";
 import { api, imageUrl, type Clinic } from "../lib/api";
 import { useClinic } from "../lib/clinic";
@@ -11,6 +11,8 @@ import { table, workbook } from "../lib/xlsx";
 import { todayIst, utcToIst, label12 } from "../../shared/time";
 import type { Holiday } from "../../shared/settings";
 import type { PrintLayout } from "../../shared/print";
+import { ROLE_LABEL, type Role } from "../../shared/roles";
+import { useMe } from "../components/AuthGate";
 
 /* ---------- Pictures: logo, letterhead, signature ---------- */
 
@@ -226,25 +228,109 @@ export function Channels() {
 
 /* ---------- Account ---------- */
 
-export function Account() {
-  const { clinic } = useClinic();
-  const initials = (clinic?.doctorName ?? "").replace(/^Dr\.?\s+/i, "").split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase();
+type Staff = { id: string; name: string; email: string; role: Role; qualification: string | null; active: boolean; lastLoginAt: string | null; createdAt: string };
+const ROLE_NOTE: Record<Role, string> = {
+  owner: "Everything, including money totals, messages, settings and deleting.",
+  doctor: "All patients, visit notes, prescriptions in their own name, tooth chart, files, lab orders and bills. Asks you to send WhatsApp messages. No reports, settings or deleting.",
+  reception: "Patients, calendar, X-rays and files, lab orders received. Can read visit notes but not write them. Asks you to send WhatsApp messages. No money totals.",
+};
+
+export function Account({ receptionBilling, onReceptionBilling }: { receptionBilling: boolean; onReceptionBilling: (on: boolean) => void }) {
+  const me = useMe();
+  const toast = useToast();
+  const [staff, setStaff] = useState<Staff[] | null>(null);
+  const [form, setForm] = useState<Staff | "new" | null>(null);
+  const load = () => api<Staff[]>("/staff").then(setStaff).catch(() => setStaff([]));
+  useEffect(() => { load(); }, []);
+  const initials = (n: string) => n.replace(/^Dr\.?\s+/i, "").split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase();
+  const seen = (u: Staff) => u.lastLoginAt ? `last signed in on ${dayLabel(utcToIst(u.lastLoginAt).day, { day: "numeric", month: "short" })}` : "hasn’t signed in yet";
+
   return (
     <div className="visit-grid">
       <section className="card stack">
-        <h2>Your account</h2>
-        <div className="account-row">
-          <span className="avatar" aria-hidden="true">{initials}</span>
-          <span><b>{clinic?.doctorName}</b><span className="muted">Owner · signs in with the clinic password</span></span>
+        <div className="card-head"><h2>People who can sign in</h2><button type="button" className="btn primary" onClick={() => setForm("new")}>Add a login</button></div>
+        {!staff ? <p className="muted">Loading…</p> : (
+          <ul className="list">
+            {staff.map((u) => (
+              <li key={u.id} className={"list-row staff-row" + (u.active ? "" : " off")}>
+                <span className="account-row">
+                  <span className="avatar" aria-hidden="true">{initials(u.name)}</span>
+                  <span><b>{u.name}{u.qualification ? `, ${u.qualification}` : ""}</b>
+                    <span className="muted">{ROLE_LABEL[u.role]} · {u.email}{u.id === me.user.id ? " · you" : ""}</span>
+                    <span className="muted small">{u.active ? seen(u) : "Switched off"}</span></span>
+                </span>
+                {u.role !== "owner" && <button type="button" className="btn small" onClick={() => setForm(u)}>Edit</button>}
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="muted">Each person signs in with their own email and password, so the activity log shows who did what. To change your own password, open your name at the bottom of the menu.</p>
+      </section>
+      <div className="stack">
+        <section className="card stack">
+          <h2>What each role can do</h2>
+          {(["owner", "doctor", "reception"] as Role[]).map((r) => <p key={r}><b>{ROLE_LABEL[r]}</b><br /><span className="muted">{ROLE_NOTE[r]}</span></p>)}
+          <label className="check"><input type="checkbox" checked={receptionBilling} onChange={(e) => onReceptionBilling(e.target.checked)} /> Receptionist can see bills and take payments</label>
+          <p className="muted small">Even with this on, the receptionist never sees the day’s collection, reports or totals, and can’t give discounts or edit bills. Save changes at the top after ticking it.</p>
+        </section>
+        <section className="card stack">
+          <h2>If you forget your password</h2>
+          <p className="muted">On the sign-in screen, tap “Forgot your password?” and enter the clinic password. That password lives only in Cloudflare (Workers → dentalog → Settings → Variables and secrets → <code>DENTALOG_PASSWORD</code>). Changing it there signs everyone out.</p>
+        </section>
+      </div>
+      {form && <StaffForm user={form === "new" ? null : form} onClose={() => setForm(null)} onSaved={(msg) => { setForm(null); toast({ title: msg }); load(); }} />}
+    </div>
+  );
+}
+
+function StaffForm({ user, onClose, onSaved }: { user: Staff | null; onClose: () => void; onSaved: (msg: string) => void }) {
+  const [f, setF] = useState({ name: user?.name ?? "", email: user?.email ?? "", role: (user?.role ?? "doctor") as Role, qualification: user?.qualification ?? "", password: "" });
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+  const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value });
+
+  async function call(body: object, msg: string) {
+    setBusy(true); setErr("");
+    try {
+      if (user) await api(`/staff/${user.id}`, { method: "PATCH", body: JSON.stringify(body) });
+      else await api("/staff", { method: "POST", body: JSON.stringify(body) });
+      onSaved(msg);
+    } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
+  }
+  function save(e: FormEvent) {
+    e.preventDefault();
+    if (!user) return call(f, `${f.name.trim()} can sign in now. Give them their email and temporary password.`);
+    const body: Record<string, unknown> = { name: f.name, role: f.role, qualification: f.qualification };
+    if (f.password) body.password = f.password;
+    call(body, f.password ? `${f.name.trim()}’s details and password saved. They’re signed out until they use the new password.` : `${f.name.trim()}’s details saved.`);
+  }
+
+  return (
+    <div className="overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <form className="dialog open" onSubmit={save} aria-labelledby="sf-title">
+        <h2 id="sf-title">{user ? `Edit ${user.name}` : "Add a login"}</h2>
+        <label className="field">Name<input className="input" autoFocus={!user} value={f.name} onChange={set("name")} placeholder="Dr Priya Raman" /></label>
+        <label className="field">Email they’ll sign in with<input className="input" type="email" disabled={!!user} value={f.email} onChange={set("email")} /></label>
+        <fieldset className="field"><legend>Role</legend>
+          <div className="seg" role="group">
+            <button type="button" aria-pressed={f.role === "doctor"} onClick={() => setF({ ...f, role: "doctor" })}>Doctor</button>
+            <button type="button" aria-pressed={f.role === "reception"} onClick={() => setF({ ...f, role: "reception" })}>Receptionist</button>
+          </div>
+          <span className="muted small">{ROLE_NOTE[f.role]}</span>
+        </fieldset>
+        {f.role === "doctor" && <label className="field">Qualification (printed on their prescriptions)<input className="input" value={f.qualification} onChange={set("qualification")} placeholder="BDS, MDS" /></label>}
+        <label className="field">{user ? "New password (leave blank to keep theirs)" : "Temporary password (8 or more characters)"}
+          <input className="input" type="text" autoComplete="new-password" value={f.password} onChange={set("password")} />
+          {!user && <span className="muted small">They can change it from their name at the bottom of the menu.</span>}
+        </label>
+        {err && <p className="error" role="alert">{err}</p>}
+        <div className="dialog-actions">
+          {user && <button type="button" className={"btn " + (user.active ? "danger-outline" : "")} disabled={busy} onClick={() => call({ active: !user.active }, user.active ? `${user.name} is switched off and signed out everywhere.` : `${user.name} can sign in again.`)}>{user.active ? "Switch off login" : "Switch login back on"}</button>}
+          <span className="spacer" />
+          <button type="button" className="btn" onClick={onClose}>Cancel</button>
+          <button type="submit" className="btn primary" disabled={busy}>{busy ? "Saving…" : user ? "Save" : "Add login"}</button>
         </div>
-        <p className="muted">The password isn’t stored in Dentalog’s code. It’s kept as a secret in Cloudflare (Workers → dentalog → Settings → Variables and secrets → <code>DENTALOG_PASSWORD</code>). Changing it there signs everyone out.</p>
-        <p className="muted">Sign-ins are recorded in the activity log under Your data.</p>
-      </section>
-      <section className="card stack">
-        <h2>Staff logins</h2>
-        <p className="muted">For an assistant or receptionist, with limited access (no reports or settings). Not set up yet. Ask Claude when you’re ready to add one.</p>
-        <button type="button" className="btn" disabled>Add staff (coming later)</button>
-      </section>
+      </form>
     </div>
   );
 }
@@ -252,8 +338,8 @@ export function Account() {
 /* ---------- Your data ---------- */
 
 type Log = { id: number; at: string; actor: string; action: string; entity: string; entityId: string; detail: string | null };
-const VERB: Record<string, string> = { create: "Added", update: "Changed", sign: "Signed", delete: "Deleted", restore: "Restored", purge: "Removed for good", upload: "Uploaded", remove: "Removed" };
-const NOUN: Record<string, string> = { patient: "a patient", appointment: "an appointment", visit: "a visit note", addendum: "an addendum", invoice: "a bill", receipt: "a payment", lab: "a lab order", clinic: "clinic settings", file: "a file" };
+const VERB: Record<string, string> = { create: "Added", update: "Changed", sign: "Signed", delete: "Deleted", restore: "Restored", purge: "Removed for good", upload: "Uploaded", remove: "Removed", discard: "Discarded", request: "Asked to send" };
+const NOUN: Record<string, string> = { patient: "a patient", appointment: "an appointment", visit: "a visit note", addendum: "an addendum", invoice: "a bill", receipt: "a payment", lab: "a lab order", clinic: "clinic settings", file: "a file", staff: "a staff login", message: "a message request" };
 function describe(l: Log) {
   if (l.entity === "login") return l.action === "login" ? "Signed in" : "Wrong password tried";
   if (l.action === "export") return "Exported all data to Excel";
