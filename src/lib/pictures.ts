@@ -63,12 +63,12 @@ function cropToInk(canvas: HTMLCanvasElement): HTMLCanvasElement {
 const toBlob = (c: HTMLCanvasElement, type: string, q?: number) =>
   new Promise<Blob>((ok, no) => c.toBlob((b) => (b ? ok(b) : no(new Error("Couldn’t read that picture."))), type, q));
 
-export type PictureKind = "logo" | "letterhead" | "signature";
+export type PictureKind = "logo" | "letterhead" | "receiptHead" | "signature";
 
 export async function preparePicture(file: File, kind: PictureKind): Promise<Blob> {
   const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
   if (!isPdf && !/^image\//.test(file.type)) throw new Error("Choose a picture (PNG or JPG) or a PDF.");
-  if (kind === "letterhead") {
+  if (kind === "letterhead" || kind === "receiptHead") {
     const c = isPdf ? cropToInk(await pdfToCanvas(file, 2000)) : await imageToCanvas(file, 2000, 1400, true);
     return toBlob(c, "image/jpeg", 0.88);
   }

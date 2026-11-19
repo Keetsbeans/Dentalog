@@ -1,4 +1,4 @@
-/** How prescriptions and receipts are laid out. Set once in Settings → Printouts. */
+/** How a prescription or a receipt is laid out. Each has its own, set in Settings → Printouts. */
 export type PrintLayout = {
   /** letterhead: the uploaded heading picture. blank: leave space for a pre-printed pad. simple: logo and clinic details in text. */
   header: "letterhead" | "blank" | "simple";
@@ -18,6 +18,9 @@ export const DEFAULT_PRINT: PrintLayout = {
   show: { alerts: true, diagnosis: true, advice: true, next: true, phone: true, upi: true },
   accent: "teal", signature: "line", footer: "Not valid without signature", paper: "A4",
 };
+
+/** Receipts start like prescriptions, with their own footer, until the clinic changes them. */
+export const RECEIPT_FOOTER = "Thank you. Keep this receipt for insurance claims.";
 
 const clamp = (n: unknown, lo: number, hi: number, d: number) => (typeof n === "number" && Number.isFinite(n) ? Math.min(hi, Math.max(lo, Math.round(n))) : d);
 

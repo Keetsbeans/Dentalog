@@ -204,3 +204,18 @@ describe("roles", () => {
     expect(can("reception", "clinical.write")).toBe(false);
   });
 });
+
+describe("separate receipt layout", () => {
+  it("starts from the prescription layout with the receipt footer, then stays separate", async () => {
+    const { readSettings } = await import("./settings");
+    const { RECEIPT_FOOTER } = await import("./print");
+    const old = readSettings(JSON.stringify({ print: { header: "blank", topMm: 60 } }));
+    expect(old.printReceipt.header).toBe("blank");
+    expect(old.printReceipt.topMm).toBe(60);
+    expect(old.printReceipt.footer).toBe(RECEIPT_FOOTER);
+    const both = readSettings(JSON.stringify({ print: { header: "blank" }, printReceipt: { header: "simple", accent: "black" } }));
+    expect(both.print.header).toBe("blank");
+    expect(both.printReceipt.header).toBe("simple");
+    expect(both.printReceipt.accent).toBe("black");
+  });
+});
