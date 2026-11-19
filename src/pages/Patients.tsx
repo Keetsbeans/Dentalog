@@ -6,6 +6,7 @@ import { useToast } from "../components/Toast";
 import { PatientForm } from "../components/PatientForm";
 import { formatPhone } from "../../shared/phone";
 import { useMe } from "../components/AuthGate";
+import { ImportPatients } from "../components/ImportPatients";
 
 
 export function Patients() {
@@ -15,6 +16,7 @@ export function Patients() {
   const [rows, setRows] = useState<Patient[] | null>(null);
   const [error, setError] = useState("");
   const [adding, setAdding] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [toDelete, setToDelete] = useState<Patient | null>(null);
 
   const load = useCallback(async () => {
@@ -45,7 +47,10 @@ export function Patients() {
     <>
       <div className="page-head">
         <h1>Patients</h1>
-        <button type="button" className="btn primary" onClick={() => setAdding(true)}>Add patient</button>
+        <div className="head-actions">
+          {can("settings") && <button type="button" className="btn" onClick={() => setImporting(true)}>Import from Excel</button>}
+          <button type="button" className="btn primary" onClick={() => setAdding(true)}>Add patient</button>
+        </div>
       </div>
       {error && <p className="error" role="alert">{error}</p>}
       <div className="card">
@@ -58,7 +63,7 @@ export function Patients() {
               {rows?.map((p) => (
                 <tr key={p.id}>
                   <td><Link to={`/patients/${p.id}`} className="plain"><b>{p.name}</b></Link><div className="muted">{p.code}{p.fileNo ? ` · ${p.fileNo}` : ""}</div></td>
-                  <td className="nums">{formatPhone(p.phoneCc, p.phone)}</td>
+                  <td className="nums">{p.phone ? formatPhone(p.phoneCc, p.phone) : <span className="muted">No mobile</span>}</td>
                   <td>{p.alerts.map((a) => <span key={a} className="tag alert">{a}</span>)}</td>
                   <td className="right">
                     {can("delete") && <button type="button" className="icon-btn" aria-label={`Delete ${p.name}`} onClick={() => setToDelete(p)}>
@@ -85,6 +90,7 @@ export function Patients() {
       >
         {toDelete?.code}{toDelete?.fileNo ? ` · ${toDelete.fileNo}` : ""}. Their visits, notes, X-rays, prescriptions and receipts are moved with them.
       </ConfirmDialog>
+      {importing && <ImportPatients onClose={() => setImporting(false)} onDone={(n) => { setImporting(false); if (n) toast({ title: `${n.toLocaleString("en-IN")} patients added from Excel` }); load(); }} />}
     </>
   );
 }

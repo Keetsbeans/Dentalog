@@ -16,7 +16,7 @@ const KINDS: [FileKind, string, string][] = [
 const LABEL = Object.fromEntries(KINDS.map(([k, l]) => [k, l])) as Record<FileKind, string>;
 const MAX = 25 * 1024 * 1024;
 
-const size = (b: number) => (b < 1024 * 1024 ? `${Math.max(1, Math.round(b / 1024))} KB` : `${(b / 1024 / 1024).toFixed(1)} MB`);
+export const size = (b: number) => (b < 1024 * 1024 ? `${Math.max(1, Math.round(b / 1024))} KB` : `${(b / 1024 / 1024).toFixed(1)} MB`);
 const ext = (n: string) => (n.includes(".") ? n.split(".").pop()!.slice(0, 4).toUpperCase() : "FILE");
 const isImage = (t: string) => /^image\/(png|jpe?g|webp|gif|bmp|avif)$/i.test(t);
 
@@ -77,8 +77,8 @@ function FileCard({ f, onEdit, onDelete }: { f: PatientFile; onEdit: () => void;
         {isImage(f.contentType) ? <img src={url} alt="" loading="lazy" /> : <span className="file-ext">{ext(f.filename)}</span>}
       </a>
       <div className="file-meta">
-        <a href={url} target="_blank" rel="noopener noreferrer" className="file-name">{f.filename}</a>
-        <span className="muted">{LABEL[f.kind]}{f.tooth ? ` · tooth ${f.tooth}` : ""} · {dayLabel(t.day, { day: "numeric", month: "short", year: "numeric" })} · {size(f.bytes)}</span>
+        <span className="file-title"><a href={url} target="_blank" rel="noopener noreferrer" className="file-name">{f.filename}</a><span className="file-size nums">{size(f.bytes)}</span></span>
+        <span className="muted">{LABEL[f.kind]}{f.tooth ? ` · tooth ${f.tooth}` : ""} · {dayLabel(t.day, { day: "numeric", month: "short", year: "numeric" })}</span>
         {f.note && <span className="file-note">{f.note}</span>}
         <span className="file-actions">
           {can("files.edit") && <button type="button" className="link-btn inline" onClick={onEdit}>Edit</button>}
@@ -175,7 +175,7 @@ export function PatientFiles({ patientId, patientName }: { patientId: string; pa
       onDragLeave={(e) => { if (e.currentTarget === e.target) setDrag(false); }}
       onDrop={(e) => { e.preventDefault(); setDrag(false); choose(e.dataTransfer.files); }}>
       <div className="card-head">
-        <div><h2>Files and X-rays</h2><span className="muted">Any type: X-rays, photos, PDFs, reports, consent forms. Up to 25 MB each.</span></div>
+        <div><h2>Files and X-rays</h2><span className="muted">{files?.length ? `${files.length} ${files.length === 1 ? "file" : "files"} · ${size(files.reduce((a, f) => a + f.bytes, 0))} in all. ` : ""}Any type: X-rays, photos, PDFs, reports, consent forms. Up to 25 MB each.</span></div>
         <input ref={input} id="pf-files" type="file" multiple className="sr-only" onChange={(e) => choose(e.target.files)} />
         <label htmlFor="pf-files" className="btn primary">Add files</label>
       </div>

@@ -16,6 +16,7 @@ export function checkPhone(cc: string, phone: string): string | null {
 
 /** "+91 98400 12345" */
 export function formatPhone(cc: string | null | undefined, phone: string) {
+  if (!phone) return "";
   const c = cc || "91";
   return c === "91" && phone.length === 10 ? `+91 ${phone.slice(0, 5)} ${phone.slice(5)}` : `+${c} ${phone}`;
 }
